@@ -19,7 +19,7 @@ Quando finalizá-lo, irei disponibilizá-lo na internet para qualquer um poder u
 - Exportar o problema em arquivo JSON (a fazer).
 - Importar o problema a partir de um arquivo JSON (a fazer).
 
-## Como usar
+## Como instalar e usar
 
 Instale o Python versão 3.10.6 ou mais recente.
 Clone usando git em um diretório de sua escolha ou baixe direto no Github em zip e extraia. 
@@ -41,4 +41,4 @@ cd app
 fastapi dev
 ```
 
-O app estará disponível no seu browser em http://localhost:8000/.
+O app estará disponível no seu browser em http://localhost:8000/. Para fechar, basta fechar a janela do terminal. Para usar novamente, basta entrar na pasta app com seu terminal e executar fastapi dev.
