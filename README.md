@@ -29,6 +29,9 @@ Em seguida entre no diretório e execute os comandos em sequência:
 python -m venv venv
 ```
 ```
+venv\Scripts\activate.bat
+```
+```
 pip install -r requirements.txt
 ```
 ```
