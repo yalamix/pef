@@ -1,0 +1,14 @@
+{% for variable in variables %}
+<a href="#" hx-get="/edit_variable/{{variable}}" hx-target="body" hx-swap="beforeend"
+    class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+    <span
+        class="mr-3 h-6 w-6 flex items-center justify-center text-xs font-medium rounded-full bg-gray-100 text-gray-500">
+        <p>{{ format_subs(variable) | safe }}</p>
+    </span>
+    {% if variables[variable] < 1e5 and variables[variable] > 1e-2 %}
+    {{variables[variable]}}
+    {% else %}
+    $$ {{latex(variables[variable]) | safe }} $$
+    {% endif %}
+</a>
+{% endfor %}

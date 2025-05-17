@@ -1,0 +1,42 @@
+{% for link in links %}
+    {% if 'fixed_support' in link %}
+        <div class="mt-3 space-y-2">
+          <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+            <i class="ri-triangle-fill mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+            {{ link ['fixed_support'] }} m
+          </a>
+        </div>
+    {% endif %}
+    {% if 'hinge' in link %}
+        <div class="mt-3 space-y-2">
+          <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+            <i class="ri-settings-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+            {{ link ['hinge'] }} m
+          </a>
+        </div>
+    {% endif %}
+    {% if 'mobile_support' in link %}
+        <div class="mt-3 space-y-2">
+          <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+            <i class="ri-triangle-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+            {{ link ['mobile_support'] }} m
+          </a>
+        </div>
+    {% endif %}
+    {% if 'cantilever' in link %}
+        <div class="mt-3 space-y-2">
+          <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+            <i class="ri-align-item-right-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+            {{ link ['cantilever'] }} m
+          </a>
+        </div>
+    {% endif %}  
+    {% if 'roller' in link %}
+        <div class="mt-3 space-y-2">
+          <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+            <i class="ri-brackets-fill mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+            {{ link ['roller'] }} m
+          </a>
+        </div>
+    {% endif %}          
+{% endfor %}

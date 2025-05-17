@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculadora de Resistência dos Materiais</title>
+  <script src="{{url_for('static' ,path='js/tailwind.min.js')}}"></script>
+  <script src="{{url_for('static' ,path='js/_hyperscript.min.js')}}"></script>
+  <script src="{{url_for('static' ,path='js/htmx.min.js')}}"></script>
+  <script id="MathJax-script" async src="{{url_for('static' ,path='js/tex-mml-chtml.js')}}"></script>  
+  <script src="{{url_for('static' ,path='js/main.js')}}" defer=""></script>
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.6.0/fonts/remixicon.css" rel="stylesheet">
+  <link href="{{url_for('static' ,path='css/main.css')}}" id="app-style" rel="stylesheet" type="text/css" />
+  <link rel="shortcut icon" href="{{url_for('static' ,path='img/favicon.png')}}"/>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-white" _="on htmx:afterSwap call MathJax.typeset()">
+  <div class="flex h-screen overflow-hidden">
+    <!-- Sidebar -->
+    <div id="sidebar" class="w-64 border-r border-gray-200 flex flex-col overflow-y-auto">
+      <!-- Logo -->
+      <div class="h-16 border-b border-gray-200 flex items-center px-6 flex-shrink-0">
+        <svg class="h-8 w-8 text-indigo-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 4C14 6.20914 12.2091 8 10 8C7.79086 8 6 6.20914 6 4C6 1.79086 7.79086 0 10 0C12.2091 0 14 1.79086 14 4Z" fill="currentColor" />
+          <path d="M14 20C14 17.7909 12.2091 16 10 16C7.79086 16 6 17.7909 6 20C6 22.2091 7.79086 24 10 24C12.2091 24 14 22.2091 14 20Z" fill="currentColor" />
+          <path d="M24 10C24 12.2091 22.2091 14 20 14C17.7909 14 16 12.2091 16 10C16 7.79086 17.7909 6 20 6C22.2091 6 24 7.79086 24 10Z" fill="currentColor" />
+          <path d="M8 10C8 12.2091 6.20914 14 4 14C1.79086 14 0 12.2091 0 10C0 7.79086 1.79086 6 4 6C6.20914 6 8 7.79086 8 10Z" fill="currentColor" />
+          <path d="M19.2929 4.70711C20.6834 6.09763 20.6834 8.36435 19.2929 9.75487C17.9024 11.1454 15.6356 11.1454 14.2451 9.75487C12.8546 8.36435 12.8546 6.09763 14.2451 4.70711C15.6356 3.31658 17.9024 3.31658 19.2929 4.70711Z" fill="currentColor" opacity="0.5" />
+          <path d="M9.75487 14.2451C11.1454 15.6356 11.1454 17.9024 9.75487 19.2929C8.36435 20.6834 6.09763 20.6834 4.70711 19.2929C3.31658 17.9024 3.31658 15.6356 4.70711 14.2451C6.09763 12.8546 8.36435 12.8546 9.75487 14.2451Z" fill="currentColor" opacity="0.5" />
+        </svg>
+        <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-900">
+          PEF3307
+        </a>        
+      </div>
+
+      <!-- Navigation -->
+      <nav class="flex-1 px-2 py-4 space-y-1">
+        <a href="#" hx-get="/add_variable" hx-target="body" hx-swap="beforeend" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+          <i class="ri-font-family mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          Adicionar variável          
+        </a>        
+        <a href="#" hx-get="/add_link" hx-target="body" hx-swap="beforeend" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+          <i class="ri-links-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          Adicionar vínculo          
+        </a>
+        <a href="#" hx-get="/add_shear" hx-target="body" hx-swap="beforeend" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+          <i class="ri-arrow-down-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          Adicionar força cortante
+        </a>
+        <a href="#" hx-get="/add_normal" hx-target="body" hx-swap="beforeend" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+          <i class="ri-arrow-right-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          Adicionar força normal
+        </a>
+        <a href="#" hx-get="/add_bending" hx-target="body" hx-swap="beforeend" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+          <i class="ri-arrow-go-back-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          Adicionar momento fletor
+        </a>
+        <a href="#" hx-get="/add_twisting" hx-target="body" hx-swap="beforeend" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+          <i class="ri-loop-left-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          Adicionar momento torsor
+        </a>        
+        <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+          <i class="ri-square-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          Dimensionar viga
+        </a>          
+        <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+          <i class="ri-donut-chart-fill mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          Dimensionar seção circular
+        </a>        
+      </nav>
+
+      <!-- Variables -->
+      <div class="px-3 mt-6">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          Variáveis
+        </h3>
+        <div class="mt-3 space-y-2" hx-get="/get_variables" hx-trigger="load, renderCanvas from:body">
+        </div>
+      </div>
+
+      <!-- Links -->
+      <div class="px-3 mt-6">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          Vínculos
+        </h3>
+        <div  hx-get="/get_links" hx-trigger="load, renderCanvas from:body">
+        </div>  
+      </div>
+
+      <!-- Loads -->
+      <div class="px-3 mt-6">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          Carregamentos
+        </h3>
+        <div hx-get="/get_loads" hx-trigger="load, renderCanvas from:body">
+        </div>  
+      </div>      
+
+      <div class="px-3 mt-6">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          Condições de Contorno e Restrições
+        </h3>
+        <!-- <div hx-get="/get_loads" hx-trigger="load, renderCanvas from:body">
+        </div>   -->
+      </div>      
+
+      <!-- Settings -->
+      <div class="px-3 mt-6 mb-6">
+        <!-- <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+          <i class="ri-settings-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          Settings
+        </a> -->
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col">
+      <!-- Top Navigation -->
+      <header class="h-16 border-b border-gray-200 flex items-center justify-between px-4">
+        <div class="flex-1 flex justify-center lg:ml-6 lg:justify-start">
+          <div>
+            <a href="#" id="toggle-sidebar" class="group flex items-center text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+              <i id="toggle-sidebar" class="ri-arrow-left-right-line m-1 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+            </a>
+          </div>
+        </div>
+        <div class="ml-4 flex items-center md:ml-6">
+          <button class="p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            <a href="/reset"><span>Resetar</span></a>
+            <!-- <i class="ri-notification-line h-6 w-6"></i> -->
+          </button>            
+          <button hx-get="/debug" hx-target="body" hx-swap="beforeend" class="p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            <span>Debug</span>
+            <!-- <i class="ri-notification-line h-6 w-6"></i> -->
+          </button>          
+          <button class="p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            <span>Baixar</span>
+            <!-- <i class="ri-notification-line h-6 w-6"></i> -->
+          </button>
+          <button class="ml-2 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            <span>Abrir</span>
+            <!-- <i class="ri-notification-line h-6 w-6"></i> -->
+          </button>          
+        </div>
+      </header>
+
+      <!-- Page Content -->
+      <main class="flex-1 p-6">
+        <div class="border border-dashed border-gray-300 rounded-lg h-full flex items-center justify-center">
+          <!-- Content goes here -->
+          <div id="canvas" hx-get="/render" hx-trigger="renderCanvas from:body" class="mt-4 mb-4 m-4 border border-dashed border-gray-300 rounded-lg h-full flex items-center justify-center">
+            {{ fig | safe}}
+          </div>
+          <div class="mt-4 mb-4 m-4 border border-dashed border-gray-300 rounded-lg items-center justify-center h-64 overflow-y-auto flex-shrink-0 flex-wrap">
+            <div class="mt-4 mb-4 m-4 border border-dashed border-gray-300 rounded-lg items-center justify-center flex-shrink-0">
+              <img src="{{url_for('static' ,path='img/coord.png')}}" style="width: 512px;">
+            </div>   
+            <div class="mt-4 mb-4 m-4 border border-dashed border-gray-300 rounded-lg items-center justify-center flex-shrink-0">
+              $$ \frac{x^{2}}{2} - x + 1 $$
+            </div>             
+          </div>       
+        </div>
+      </main>
+    </div>
+  </div>
+</body>
+</html>
