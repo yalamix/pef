@@ -27,13 +27,15 @@ Em seguida entre no diretório e execute os comandos em sequência:
 
 ```
 python -m venv venv
-
+```
+```
 pip install -r requirements.txt
-
+```
+```
 cd app
-
+```
+```
 fastapi dev
-
 ```
 
 O app estará disponível no seu browser em http://localhost:8000/.
