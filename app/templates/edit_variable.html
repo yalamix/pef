@@ -1,7 +1,7 @@
 {% extends "modal.html" %}
 {% block content %}
 <h3 class="text-base font-semibold text-gray-900" id="modal-title">Editar variável</h3>
-<form class="mt-4" hx-post="/variable" hx-swap="innerHTML settle:3s" hx-target="#toast">
+<form class="mt-4" hx-post="/variable" hx-swap="innerHTML settle:3s" hx-target="#toast" hx-vals='{"variable_name": "{{ variable }}"}'>
   <div class="mt-4">
     <label for="variable_name" class="block text-sm/6 font-medium text-gray-900">Símbolo</label>
     <div class="mt-2">

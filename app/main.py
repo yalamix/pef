@@ -72,7 +72,12 @@ async def get_loads(request: Request, session_id: str = Cookie(None, alias="sess
     session = db.query(UserSession).where(UserSession.id == session_id).first()    
     BP = BeamProblem(json.dumps(session.problem[0].parameters))       
     return templates.TemplateResponse(
-        request=request, name="loads.html", context={'shear_loads': BP.get_shear_forces(), 'normal_loads': BP.get_normal_forces()}
+        request=request, name="loads.html", context={
+            'shear_loads': BP.get_shear_forces(), 
+            'normal_loads': BP.get_normal_forces(),
+            'twisting_loads': BP.get_twisting_moments(),
+            'bending_loads': BP.get_bending_moments()
+        }
     )
 
 @app.get("/debug", response_class=HTMLResponse)
@@ -181,7 +186,7 @@ async def variable(
     ):
     session = db.query(UserSession).where(UserSession.id == session_id).first()
     BP = BeamProblem(json.dumps(session.problem[0].parameters))
-    if variable_name in BP.variables:
+    if variable_name not in BP.variables:
         context = {
             'msg': f'Adicionada variável {variable_name}. Valor: {variable_value}',
             'success': True

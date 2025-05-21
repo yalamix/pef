@@ -14,3 +14,19 @@
         </a>
       </div>
 {% endfor %}
+{% for load in twisting_loads %}
+      <div class="mt-3 space-y-2">
+        <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900 text-xs">
+          <i class="ri-loop-left-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          $$ {{ load }} $$
+        </a>
+      </div>
+{% endfor %}
+{% for load in bending_loads %}
+      <div class="mt-3 space-y-2">
+        <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900 text-xs">
+          <i class="ri-arrow-go-back-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          $$ {{ load }} $$
+        </a>
+      </div>
+{% endfor %}

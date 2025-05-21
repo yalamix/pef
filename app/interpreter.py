@@ -277,6 +277,48 @@ class BeamProblem:
                 eq = p * SingularityFunction(x, force['start'], force['n'])
             forces.append(latex_with_threshold(eq))
         return forces    
+ 
+    def get_twisting_moments(self) -> List[str]:
+        """
+        Returns a list of the latex form of the twisting moments.
+        
+        Returns:
+            b: The list of latex strings.
+        """
+        forces = []
+        x = symbols('x', positive=True)
+        for force in self.twisting_moments:
+            try:
+                p = float(force['value'])
+            except:
+                p = symbols(force['value'])            
+            if force['stop'] < self.beam_size and force['n'] >= 0:
+                eq = p * SingularityFunction(x, force['start'], force['n']) - p * SingularityFunction(x, force['stop'], force['n'])
+            else:
+                eq = p * SingularityFunction(x, force['start'], force['n'])
+            forces.append(latex_with_threshold(eq))
+        return forces     
+
+    def get_bending_moments(self) -> List[str]:
+        """
+        Returns a list of the latex form of the bending moments.
+        
+        Returns:
+            b: The list of latex strings.
+        """
+        forces = []
+        x = symbols('x', positive=True)
+        for force in self.bending_moments:
+            try:
+                p = float(force['value'])
+            except:
+                p = symbols(force['value'])            
+            if force['stop'] < self.beam_size and force['n'] >= 0:
+                eq = p * SingularityFunction(x, force['start'], force['n']) - p * SingularityFunction(x, force['stop'], force['n'])
+            else:
+                eq = p * SingularityFunction(x, force['start'], force['n'])
+            forces.append(latex_with_threshold(eq))
+        return forces         
 
     def graph(self) -> go.Figure:
         """

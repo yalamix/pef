@@ -12,32 +12,24 @@ class ThresholdLatexPrinter(LatexPrinter):
         self.sci_max = sci_max
 
     def _print_Float(self, f: Float) -> str:
-        # 1) Recover exact numerator/denominator of the Python float
-        py_num, py_den = float(f).as_integer_ratio()
-        rat = Rational(py_num, py_den)
+        # 1) Turn the SymPy Float into a native Python float
+        pyf = float(f)
 
-        # 2) Compute mantissa (m) and exponent (e) in base-10:
-        if rat.q == 1:
-            # rat is an integer; factor out powers of 10 manually
-            m_int = rat.p
-            e = 0
-            while m_int % 10 == 0 and m_int != 0:
-                m_int //= 10
-                e += 1
-            m = m_int
-        else:
-            # a true rational: use as_mant_exp()
-            m, e = rat.as_mant_exp()
+        # 2) Use Python’s "{:e}" formatting to get "mantissa e±exp"
+        sci_str = "{:.15e}".format(pyf)               # e.g. "1.234567890123450e+06" :contentReference[oaicite:0]{index=0}
+        mant_str, exp_str = sci_str.split("e")
+        e = int(exp_str)
 
-        # 3) Decide formatting based on thresholds
+        # 3) Strip trailing zeros & “.” from the mantissa
+        mant_str = mant_str.rstrip("0").rstrip(".")
+
+        # 4) If exponent outside [sci_min, sci_max], emit in m×10^e form
         if e > self.sci_max or e < self.sci_min:
-            # format mantissa, strip “.0” if any
-            m_str = str(m)
-            if m_str.endswith('.0'):
-                m_str = m_str[:-2]
-            return rf"{m_str}\times10^{{{e}}}"
-        # 4) Otherwise defer to SymPy’s default float‐printer
+            return rf"{mant_str}\times10^{{{e}}}"
+
+        # 5) Otherwise defer to SymPy’s default float printer
         return super()._print_Float(f)
+
 
 def latex_with_threshold(expr, **printer_kwargs):
     """
