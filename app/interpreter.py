@@ -128,6 +128,15 @@ class BeamProblem:
             True if the link was added, False otherwise.
         """        
         if self.assert_link_consistency(link_type, position):
+            if link_type == 'cantilever':
+                if position < self.beam_size/2:
+                    position = 0
+                else:
+                    position = self.beam_size
+            if position < 0:
+                position = 0
+            if position > self.beam_size:
+                position = self.beam_size
             self.links.append({link_type: position})
             return True
         return False
@@ -319,6 +328,15 @@ class BeamProblem:
                 eq = p * SingularityFunction(x, force['start'], force['n'])
             forces.append(latex_with_threshold(eq))
         return forces         
+
+    def get_boundary_conditions(self) -> List[str]:
+        """
+        Returns a list of the latex form of the boundary conditions.
+        
+        Returns:
+            b: The list of latex strings.
+        """ 
+        ...
 
     def graph(self) -> go.Figure:
         """

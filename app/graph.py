@@ -328,7 +328,7 @@ def add_hinge(fig, rec_height, x = 0):
     r = rec_height * 0.95
     fig.add_shape(type="circle",
         xref="x", yref="y",
-        x0=x - r/2, y0=rec_height - r, x1=x + r/2, y1=r,
+        x0=x - r/2, y0=rec_height/2 - r/2, x1=x + r/2, y1=rec_height/2 + r/2,
         line_color="DarkOrange",
     )
 
