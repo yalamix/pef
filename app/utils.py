@@ -1,4 +1,4 @@
-from sympy import Float, Rational, sympify
+from sympy import Float, Add, sympify, Symbol
 from sympy.printing.latex import LatexPrinter
 from PIL import Image
 import plotly.graph_objects as go
@@ -29,6 +29,14 @@ class ThresholdLatexPrinter(LatexPrinter):
 
         # 5) Otherwise defer to SymPy’s default float printer
         return super()._print_Float(f)
+    
+    def _print_SingularityFunction(self, expr):
+        xx, aa, nn = expr.args
+        return r'{\left\langle %s - %s \right\rangle}^{%s}' % (
+            self._print(xx),  # x
+            self._print(aa),  # a
+            self._print(nn),  # n
+        )
 
 
 def latex_with_threshold(expr, **printer_kwargs):
@@ -70,3 +78,22 @@ def fig_to_rotated_img(fig: go.Figure, rotation_angle: int = 0) -> str:
     data_uri = f"data:image/png;base64,{b64_str}"
     img_html = f'<img src="{data_uri}" alt="Rotated Plot" />'
     return img_html
+
+def parse_and_update_symbols(expr_str: str, existing: list[str]) -> list[str]:
+    """
+    Parse expr_str with sympify, re‑using any names in `existing`,
+    and return a list of any new free symbols (as strings).
+    """
+    # 1) tell sympify about your existing names
+    locals_dict = { name: Symbol(name) for name in existing }
+    
+    # 2) parse — unknown names become fresh Symbols
+    expr = sympify(expr_str, locals=locals_dict)
+    
+    # 3) collect all symbols seen in the result
+    all_names = { str(s) for s in expr.free_symbols }
+    
+    # 4) subtract the ones you already had
+    new_names = all_names - set(existing)
+    
+    return list(new_names)

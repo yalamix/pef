@@ -64,6 +64,31 @@ class BeamProblem:
         b['bending_moments'] = self.bending_moments
         return b
     
+    def _update_variables(self, expr: str, default: float = 1) -> None:
+        """
+        Updates the variable list.   
+
+        Parameters:
+            expr        : Expression containing new variables.
+            default        : Default value for new variables.
+        """          
+        new_symbols = parse_and_update_symbols(expr, list(self.variables.keys()))
+        for s in new_symbols:
+            if s not in self.variables:
+                self.variables[s] = default     
+    
+    def _get_symbols(self) -> dict[Symbol]:
+        """
+        Converts the variables into Sympy Symbols.
+
+        Returns:
+            Symbol dictionary.
+        """        
+        return {name: Symbol(name) for name in list(self.variables.keys())}
+        
+    def _ev(self, expr: str) -> float:
+        return float(sympify(expr, locals=self._get_symbols()).evalf(subs=self.variables))
+
     def assert_link_consistency(self, link_type: str, position: float) -> bool:
         """
         Makes sure that two links don't occupy the same position.
@@ -116,7 +141,7 @@ class BeamProblem:
         if variable == 'L':
             self.beam_size = value
           
-    def add_link(self, link_type: str, position: float) -> bool:
+    def add_link(self, link_type: str, position: str) -> bool:
         """
         Adds a new link.
 
@@ -126,22 +151,74 @@ class BeamProblem:
         
         Returns:
             True if the link was added, False otherwise.
-        """        
+        """
+        # check position
+        try:
+            position = float(position)
+        except:
+            if position not in self.variables:
+                self._update_variables(position)
+
         if self.assert_link_consistency(link_type, position):
             if link_type == 'cantilever':
-                if position < self.beam_size/2:
+                if self._ev(position) < self.beam_size/2:
                     position = 0
                 else:
                     position = self.beam_size
-            if position < 0:
+            if self._ev(position) < 0:
                 position = 0
-            if position > self.beam_size:
+            if self._ev(position) > self.beam_size:
                 position = self.beam_size
             self.links.append({link_type: position})
             return True
         return False
-    
-    def add_shear_force(self, value: str, start: float, stop: float, n: int, pos: bool = True):
+
+    def _create_load(self, value: str, start: str, stop: str, n: int, pos: bool = True) -> dict:
+        """
+        Creates a load (force or moment).   
+
+        Parameters:
+            value        : Value of the force.        
+            start         : Start position of the domain of the force.
+            stop         : End position of the domain of the force.
+            n         : Exponent of the polynomial representing the force.
+            pos         : True if the force is positive, False otherwise.
+        """         
+        if value not in self.variables:
+            try:
+                float(value)
+            except:     
+                self._update_variables(value)
+        if start not in self.variables:
+            try:
+                float(start)
+            except:     
+                self._update_variables(start)
+        if stop not in self.variables:
+            try:
+                float(stop)
+            except:     
+                self._update_variables(stop, 2)
+
+        # if n >= 0 assert stop > start
+        if n >= 0:
+            if self._ev(stop) < self._ev(start):
+                self.stop = 'L'
+        # constrain load to problem domain
+        if self._ev(start) < 0:
+            start = 0
+        if self._ev(stop) > self.beam_size:
+            stop = 'L'
+
+        return {
+                "value": value,
+                "start": start,
+                "stop": stop,
+                "n": n,
+                "pos": pos
+            }          
+
+    def add_shear_force(self, value: str, start: str, stop: str, n: int, pos: bool = True):
         """
         Adds a concentrated or distributed shear force.   
 
@@ -152,22 +229,9 @@ class BeamProblem:
             n         : Exponent of the polynomial representing the force.
             pos         : True if the force is positive, False otherwise.
         """ 
-        if value not in self.variables:
-            try:
-                float(value)
-            except:
-                self.variables[value] = 1
-        self.shear_forces.append(
-            {
-                "value": value,
-                "start": start,
-                "stop": stop,
-                "n": n,
-                "pos": pos
-            }            
-        )  
+        self.shear_forces.append(self._create_load(value, start, stop, n, pos))  
 
-    def add_normal_force(self, value: str, start: float, stop: float, n: int, pos: bool = True):
+    def add_normal_force(self, value: str, start: str, stop: str, n: int, pos: bool = True):
         """
         Adds a concentrated or distributed normal force.   
 
@@ -177,23 +241,10 @@ class BeamProblem:
             stop         : End position of the domain of the force.
             n         : Exponent of the polynomial representing the force.
             pos         : True if the force is positive, False otherwise.
-        """ 
-        if value not in self.variables:
-            try:
-                float(value)
-            except:
-                self.variables[value] = 1        
-        self.normal_forces.append(
-            {
-                "value": value,
-                "start": start,
-                "stop": stop,
-                "n": n,
-                "pos": pos
-            }            
-        )  
+        """       
+        self.normal_forces.append(self._create_load(value, start, stop, n, pos))  
 
-    def add_twisting_moment(self, value: str, start: float, stop: float, n: int, pos: bool = True):
+    def add_twisting_moment(self, value: str, start: str, stop: str, n: int, pos: bool = True):
         """
         Adds a concentrated or distributed twisting moment.   
 
@@ -203,23 +254,10 @@ class BeamProblem:
             stop         : End position of the domain of the moment.
             n         : Exponent of the polynomial representing the moment.
             pos         : True if the moment is positive, False otherwise.
-        """ 
-        if value not in self.variables:
-            try:
-                float(value)
-            except:
-                self.variables[value] = 1        
-        self.twisting_moments.append(
-            {
-                "value": value,
-                "start": start,
-                "stop": stop,
-                "n": n,
-                "pos": pos
-            }            
-        )  
+        """        
+        self.twisting_moments.append(self._create_load(value, start, stop, n, pos))  
 
-    def add_bending_moment(self, value: str, start: float, stop: float, n: int, pos: bool = True):
+    def add_bending_moment(self, value: str, start: str, stop: str, n: int, pos: bool = True):
         """
         Adds a concentrated or distributed bending moment.   
 
@@ -229,22 +267,39 @@ class BeamProblem:
             stop         : End position of the domain of the moment.
             n         : Exponent of the polynomial representing the moment.
             pos         : True if the moment is positive, False otherwise.
-        """ 
-        if value not in self.variables:
-            try:
-                float(value)
-            except:
-                self.variables[value] = 1        
-        self.bending_moments.append(
-            {
-                "value": value,
-                "start": start,
-                "stop": stop,
-                "n": n,
-                "pos": pos
-            }            
-        )  
+        """        
+        self.bending_moments.append(self._create_load(value, start, stop, n, pos))  
     
+    def _get_load_expression(self, force: dict) -> str:
+        """
+        Generates the latex string of the singularity function representing the load.   
+
+        Parameters:
+            force        : Load dictionary.        
+
+        Returns:
+            out: Latex string of the load expression.
+        """          
+        x = symbols('x', positive=True)
+        try:
+            p = float(force['value'])
+        except:
+            p = sympify(force['value'], locals=self._get_symbols())            
+        if self._ev(force['stop']) < self.beam_size and force['n'] >= 0:
+            eq = p * SingularityFunction(x, force['start'], force['n']) - p * SingularityFunction(x, force['stop'], force['n'])
+        else:
+            eq = p * SingularityFunction(x, force['start'], force['n'])
+        return latex_with_threshold(eq)
+    
+    def _load_expressions(self, loads: List[dict]) -> List[str]:
+        """
+        Returns a list of the latex form of the loads.
+        
+        Returns:
+            b: The list of latex strings.
+        """        
+        return [self._get_load_expression(load) for load in loads]        
+
     def get_normal_forces(self) -> List[str]:
         """
         Returns a list of the latex form of the normal forces.
@@ -252,19 +307,7 @@ class BeamProblem:
         Returns:
             b: The list of latex strings.
         """
-        forces = []
-        x = symbols('x', positive=True)
-        for force in self.normal_forces:
-            try:
-                p = float(force['value'])
-            except:
-                p = symbols(force['value'])            
-            if force['stop'] < self.beam_size and force['n'] >= 0:
-                eq = p * SingularityFunction(x, force['start'], force['n']) - p * SingularityFunction(x, force['stop'], force['n'])
-            else:
-                eq = p * SingularityFunction(x, force['start'], force['n'])
-            forces.append(latex_with_threshold(eq))
-        return forces
+        return self._load_expressions(self.normal_forces)
 
     def get_shear_forces(self) -> List[str]:
         """
@@ -273,19 +316,7 @@ class BeamProblem:
         Returns:
             b: The list of latex strings.
         """
-        forces = []
-        x = symbols('x', positive=True)
-        for force in self.shear_forces:
-            try:
-                p = float(force['value'])
-            except:
-                p = symbols(force['value'])            
-            if force['stop'] < self.beam_size and force['n'] >= 0:
-                eq = p * SingularityFunction(x, force['start'], force['n']) - p * SingularityFunction(x, force['stop'], force['n'])
-            else:
-                eq = p * SingularityFunction(x, force['start'], force['n'])
-            forces.append(latex_with_threshold(eq))
-        return forces    
+        return self._load_expressions(self.shear_forces) 
  
     def get_twisting_moments(self) -> List[str]:
         """
@@ -294,19 +325,7 @@ class BeamProblem:
         Returns:
             b: The list of latex strings.
         """
-        forces = []
-        x = symbols('x', positive=True)
-        for force in self.twisting_moments:
-            try:
-                p = float(force['value'])
-            except:
-                p = symbols(force['value'])            
-            if force['stop'] < self.beam_size and force['n'] >= 0:
-                eq = p * SingularityFunction(x, force['start'], force['n']) - p * SingularityFunction(x, force['stop'], force['n'])
-            else:
-                eq = p * SingularityFunction(x, force['start'], force['n'])
-            forces.append(latex_with_threshold(eq))
-        return forces     
+        return self._load_expressions(self.twisting_moments)      
 
     def get_bending_moments(self) -> List[str]:
         """
@@ -315,19 +334,7 @@ class BeamProblem:
         Returns:
             b: The list of latex strings.
         """
-        forces = []
-        x = symbols('x', positive=True)
-        for force in self.bending_moments:
-            try:
-                p = float(force['value'])
-            except:
-                p = symbols(force['value'])            
-            if force['stop'] < self.beam_size and force['n'] >= 0:
-                eq = p * SingularityFunction(x, force['start'], force['n']) - p * SingularityFunction(x, force['stop'], force['n'])
-            else:
-                eq = p * SingularityFunction(x, force['start'], force['n'])
-            forces.append(latex_with_threshold(eq))
-        return forces         
+        return self._load_expressions(self.bending_moments)
 
     def get_boundary_conditions(self) -> List[str]:
         """
@@ -354,97 +361,97 @@ class BeamProblem:
         # Add the links
         for link in self.links:
             if 'cantilever' in link:
-                self.fig = add_cantilever(self.fig, BEAM_HEIGHT, link['cantilever'])
+                self.fig = add_cantilever(self.fig, BEAM_HEIGHT, self._ev(link['cantilever']))
             if 'hinge' in link:
-                self.fig = add_hinge(self.fig, BEAM_HEIGHT, link['hinge'])
+                self.fig = add_hinge(self.fig, BEAM_HEIGHT, self._ev(link['hinge']))
             if 'mobile_support' in link:
-                self.fig = add_mobile_support(self.fig, BEAM_HEIGHT, link['mobile_support'])
+                self.fig = add_mobile_support(self.fig, BEAM_HEIGHT, self._ev(link['mobile_support']))
             if 'fixed_support' in link:
-                self.fig = add_fixed_support(self.fig, BEAM_HEIGHT, link['fixed_support'])
+                self.fig = add_fixed_support(self.fig, BEAM_HEIGHT, self._ev(link['fixed_support']))
             if 'roller' in link:
-                self.fig = add_roller_support(self.fig, BEAM_HEIGHT, link['roller'])                
+                self.fig = add_roller_support(self.fig, BEAM_HEIGHT, self._ev(link['roller']))                
         
         # Add shear forces
         for force in self.shear_forces:
             if force['n'] < 0:
-                if force['start'] < self.beam_size:
+                if self._ev(force['start']) < self.beam_size:
                     if force['pos']:
-                        self.fig = add_vector(self.fig, (force['start'], BEAM_HEIGHT), (force['start'], BEAM_HEIGHT + 1), format_subs(force['value']))
+                        self.fig = add_vector(self.fig, (self._ev(force['start']), BEAM_HEIGHT), (self._ev(force['start']), BEAM_HEIGHT + 1), format_subs(force['value']))
                     else:
-                        self.fig = add_vector(self.fig, (force['start'], BEAM_HEIGHT + 1), (force['start'], BEAM_HEIGHT), format_subs(force['value']))
+                        self.fig = add_vector(self.fig, (self._ev(force['start']), BEAM_HEIGHT + 1), (self._ev(force['start']), BEAM_HEIGHT), format_subs(force['value']))
                 else:
                     if force['pos']:
-                        self.fig = add_vector(self.fig, (force['start'], BEAM_HEIGHT + 1), (force['start'], BEAM_HEIGHT), format_subs(force['value']))                    
+                        self.fig = add_vector(self.fig, (self._ev(force['start']), BEAM_HEIGHT + 1), (self._ev(force['start']), BEAM_HEIGHT), format_subs(force['value']))                    
                     else:
-                        self.fig = add_vector(self.fig, (force['start'], BEAM_HEIGHT), (force['start'], BEAM_HEIGHT + 1), format_subs(force['value']))
+                        self.fig = add_vector(self.fig, (self._ev(force['start']), BEAM_HEIGHT), (self._ev(force['start']), BEAM_HEIGHT + 1), format_subs(force['value']))
             else:
-                x = np.linspace(force['start'], force['stop'], 100)
+                x = np.linspace(self._ev(force['start']), self._ev(force['stop']), 100)
                 if force['n'] == 0:
                     y = [2* BEAM_HEIGHT for i in range(len(x))]
                 else:
-                    y = (x - force['start']) ** force['n']
+                    y = (x - self._ev(force['start'])) ** force['n']
                     y = (y-np.min(y))/(np.max(y)-np.min(y)) + BEAM_HEIGHT
                 self.fig = add_curve_with_y_cutoff_fill(self.fig, x, y, BEAM_HEIGHT, format_subs(force['value']), up=force['pos'])
         
         # Add normal forces
         for force in self.normal_forces:
             if force['n'] < 0:
-                if force['start'] > 0:
+                if self._ev(force['start']) > 0:
                     if force['pos']:
-                        self.fig = add_vector(self.fig, (force['start'], BEAM_HEIGHT/2), (force['start'] + 1, BEAM_HEIGHT/2), format_subs(force['value']))
+                        self.fig = add_vector(self.fig, (self._ev(force['start']), BEAM_HEIGHT/2), (self._ev(force['start']) + 1, BEAM_HEIGHT/2), format_subs(force['value']))
                     else:
-                        self.fig = add_vector(self.fig, (force['start'] + 1, BEAM_HEIGHT/2), (force['start'], BEAM_HEIGHT/2), format_subs(force['value']))
+                        self.fig = add_vector(self.fig, (self._ev(force['start']) + 1, BEAM_HEIGHT/2), (self._ev(force['start']), BEAM_HEIGHT/2), format_subs(force['value']))
                 else:
                     if force['pos']:
-                        self.fig = add_vector(self.fig, (force['start'] + 1, BEAM_HEIGHT/2), (force['start'], BEAM_HEIGHT/2), format_subs(force['value']))                 
+                        self.fig = add_vector(self.fig, (self._ev(force['start']) + 1, BEAM_HEIGHT/2), (self._ev(force['start']), BEAM_HEIGHT/2), format_subs(force['value']))                 
                     else:
-                        self.fig = add_vector(self.fig, (force['start'], BEAM_HEIGHT/2), (force['start'] + 1, BEAM_HEIGHT/2), format_subs(force['value']))
+                        self.fig = add_vector(self.fig, (self._ev(force['start']), BEAM_HEIGHT/2), (self._ev(force['start']) + 1, BEAM_HEIGHT/2), format_subs(force['value']))
             else:
-                x = np.linspace(force['start'], force['stop'], 100)
+                x = np.linspace(self._ev(force['start']), self._ev(force['stop']), 100)
                 if force['n'] == 0:
                     y = [2* BEAM_HEIGHT for i in range(len(x))]
                 else:
-                    y = (x - force['start']) ** force['n']
+                    y = (x - self._ev(force['start'])) ** force['n']
                     y = (y-np.min(y))/(np.max(y)-np.min(y)) + BEAM_HEIGHT
                 self.fig = add_curve_with_y_cutoff_fill(self.fig, x, y, BEAM_HEIGHT, format_subs(force['value']), up=force['pos'], side=True)
         
         # Add twisting moments
         for moment in self.twisting_moments:
             if moment['n'] < 0:
-                if moment['start'] > 0:
+                if self._ev(moment['start']) > 0:
                     if moment['pos']:
-                        self.fig = add_vector(self.fig, (moment['start'], BEAM_HEIGHT/2), (moment['start'] + 1, BEAM_HEIGHT/2), format_subs(moment['value']))
-                        self.fig = add_vector(self.fig, (moment['start'] + 0.5, BEAM_HEIGHT/2), (moment['start'] + 1.5, BEAM_HEIGHT/2), format_subs(moment['value']))
+                        self.fig = add_vector(self.fig, (self._ev(moment['start']), BEAM_HEIGHT/2), (self._ev(moment['start']) + 1, BEAM_HEIGHT/2), format_subs(moment['value']))
+                        self.fig = add_vector(self.fig, (self._ev(moment['start']) + 0.5, BEAM_HEIGHT/2), (self._ev(moment['start']) + 1.5, BEAM_HEIGHT/2), format_subs(moment['value']))
                     else:
-                        self.fig = add_vector(self.fig, (moment['start'] + 1, BEAM_HEIGHT/2), (moment['start'], BEAM_HEIGHT/2), format_subs(moment['value']))
-                        self.fig = add_vector(self.fig, (moment['start'] + 1.5, BEAM_HEIGHT/2), (moment['start'] + 0.5, BEAM_HEIGHT/2), format_subs(moment['value']))
+                        self.fig = add_vector(self.fig, (self._ev(moment['start']) + 1, BEAM_HEIGHT/2), (self._ev(moment['start']), BEAM_HEIGHT/2), format_subs(moment['value']))
+                        self.fig = add_vector(self.fig, (self._ev(moment['start']) + 1.5, BEAM_HEIGHT/2), (self._ev(moment['start']) + 0.5, BEAM_HEIGHT/2), format_subs(moment['value']))
                 else:
                     if moment['pos']:
-                        self.fig = add_vector(self.fig, (moment['start'] + 1, BEAM_HEIGHT/2), (moment['start'], BEAM_HEIGHT/2), format_subs(moment['value'])) 
-                        self.fig = add_vector(self.fig, (moment['start'] + 1.5, BEAM_HEIGHT/2), (moment['start'] + 0.5, BEAM_HEIGHT/2), format_subs(moment['value']))                
+                        self.fig = add_vector(self.fig, (self._ev(moment['start']) + 1, BEAM_HEIGHT/2), (self._ev(moment['start']), BEAM_HEIGHT/2), format_subs(moment['value'])) 
+                        self.fig = add_vector(self.fig, (self._ev(moment['start']) + 1.5, BEAM_HEIGHT/2), (self._ev(moment['start']) + 0.5, BEAM_HEIGHT/2), format_subs(moment['value']))                
                     else:
-                        self.fig = add_vector(self.fig, (moment['start'], BEAM_HEIGHT/2), (moment['start'] + 1, BEAM_HEIGHT/2), format_subs(moment['value']))
-                        self.fig = add_vector(self.fig, (moment['start'] + 0.5, BEAM_HEIGHT/2), (moment['start'] + 1.5, BEAM_HEIGHT/2), format_subs(moment['value']))
+                        self.fig = add_vector(self.fig, (self._ev(moment['start']), BEAM_HEIGHT/2), (self._ev(moment['start']) + 1, BEAM_HEIGHT/2), format_subs(moment['value']))
+                        self.fig = add_vector(self.fig, (self._ev(moment['start']) + 0.5, BEAM_HEIGHT/2), (self._ev(moment['start']) + 1.5, BEAM_HEIGHT/2), format_subs(moment['value']))
             else:
-                x = np.linspace(moment['start'], moment['stop'], 100)
+                x = np.linspace(self._ev(moment['start']), self._ev(moment['stop']), 100)
                 if moment['n'] == 0:
                     y = [2* BEAM_HEIGHT for i in range(len(x))]
                 else:
-                    y = (x - moment['start']) ** moment['n']
+                    y = (x - self._ev(moment['start'])) ** moment['n']
                     y = (y-np.min(y))/(np.max(y)-np.min(y)) + BEAM_HEIGHT
                 self.fig = add_curve_with_y_cutoff_fill(self.fig, x, y, BEAM_HEIGHT, format_subs(moment['value']), up=moment['pos'], side=True, double=True)    
 
         # Add bending moments
         for moment in self.bending_moments:
-            if moment['start'] < self.beam_size:
+            if self._ev(moment['start']) < self.beam_size:
                 if moment['pos']:
-                    self.fig = add_semicircle_arrow(self.fig, moment['start'], BEAM_HEIGHT/2, orientation='clockwise', label=format_subs(moment['value']))
+                    self.fig = add_semicircle_arrow(self.fig, self._ev(moment['start']), BEAM_HEIGHT/2, orientation='clockwise', label=format_subs(moment['value']))
                 else:
-                    self.fig = add_semicircle_arrow(self.fig, moment['start'], BEAM_HEIGHT/2, label=format_subs(moment['value']))
+                    self.fig = add_semicircle_arrow(self.fig, self._ev(moment['start']), BEAM_HEIGHT/2, label=format_subs(moment['value']))
             else:
                 if moment['pos']:
-                    self.fig = add_semicircle_arrow(self.fig, moment['start'], BEAM_HEIGHT/2, label=format_subs(moment['value']))                 
+                    self.fig = add_semicircle_arrow(self.fig, self._ev(moment['start']), BEAM_HEIGHT/2, label=format_subs(moment['value']))                 
                 else:
-                    self.fig = add_semicircle_arrow(self.fig, moment['start'], BEAM_HEIGHT/2, orientation='clockwise', label=format_subs(moment['value']))
+                    self.fig = add_semicircle_arrow(self.fig, self._ev(moment['start']), BEAM_HEIGHT/2, orientation='clockwise', label=format_subs(moment['value']))
 
         return self.fig
