@@ -46,6 +46,23 @@ class BeamProblem:
         self.normal_forces = b['normal_forces']
         self.twisting_moments = b['twisting_moments']
         self.bending_moments = b['bending_moments']
+        self.protected_symbols = [
+            'N_x',
+            'M_x',
+            'M_z',
+            'V_y',
+            'u',
+            'q',
+            'p',
+            'v',
+            'phi',
+            'tau',
+            'E',
+            'G',
+            'A',
+            'J_p',
+            'I_zz'
+        ]
     
     def to_dict(self) -> dict:
         """
@@ -84,7 +101,7 @@ class BeamProblem:
         Returns:
             Symbol dictionary.
         """        
-        return {name: Symbol(name) for name in list(self.variables.keys())}
+        return {name: Symbol(name) for name in list(self.variables.keys()) + self.protected_symbols}
         
     def _ev(self, expr: str) -> float:
         return float(sympify(expr, locals=self._get_symbols()).evalf(subs=self.variables))
@@ -344,6 +361,11 @@ class BeamProblem:
             b: The list of latex strings.
         """ 
         ...
+
+    def calculate_boundary_conditions(self):
+        """
+        """
+        
 
     def graph(self) -> go.Figure:
         """
