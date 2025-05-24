@@ -4,6 +4,7 @@ from PIL import Image
 import plotly.graph_objects as go
 import io
 import base64
+import re
 
 class ThresholdLatexPrinter(LatexPrinter):
     def __init__(self, *args, sci_min=-2, sci_max=4, **kwargs):
@@ -38,6 +39,37 @@ class ThresholdLatexPrinter(LatexPrinter):
             self._print(nn),  # n
         )
 
+def format_label(text: str) -> str:
+    """
+    Convert a plain‐text label into Plotly‐HTML with:
+      * simple fractions a/b → <sup>a</sup>/<sub>b</sub>
+      * underscores  x_y → x<sub>y</sub> (only the token after each `_`)
+    """
+    # 1) Fractions: <sup>num</sup>/<sub>den</sub>
+    def _frac(m):
+        num, den = m.group(1), m.group(2)
+        return f"<sup>{num}</sup>/<sub>{den}</sub>"
+
+    text = re.sub(
+        r'\b([A-Za-z0-9]+)\/([A-Za-z0-9]+)\b',
+        _frac,
+        text
+    )
+
+    # 2) Subscripts: replace every _token with <sub>token</sub>
+    #    \w+ matches letters, digits or underscore — adjust if you need hyphens etc.
+    text = re.sub(r'_(\w+)', r'<sub>\1</sub>', text)
+
+    return text
+
+def format_subs(label: str) -> str:
+    a = label.split('_')
+    if len(a) > 1:
+        total_subs = len(a) - 1
+        label = '<sub>'.join(a)
+        for i in range(total_subs):
+            label += '</sub>'
+    return label
 
 def latex_with_threshold(expr, **printer_kwargs):
     """

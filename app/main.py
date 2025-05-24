@@ -80,6 +80,16 @@ async def get_loads(request: Request, session_id: str = Cookie(None, alias="sess
         }
     )
 
+@app.get("/get_conditions", response_class=HTMLResponse)
+async def get_conditions(request: Request, session_id: str = Cookie(None, alias="session_id"), db: Session = Depends(get_db)):
+    session = db.query(UserSession).where(UserSession.id == session_id).first()    
+    BP = BeamProblem(json.dumps(session.problem[0].parameters))       
+    return templates.TemplateResponse(
+        request=request, name="conditions.html", context={
+            'conditions': BP.get_boundary_conditions()
+        }
+    )
+
 @app.get("/debug", response_class=HTMLResponse)
 async def debug(request: Request, session_id: str = Cookie(None, alias="session_id"), db: Session = Depends(get_db)):
     session = db.query(UserSession).where(UserSession.id == session_id).first() 

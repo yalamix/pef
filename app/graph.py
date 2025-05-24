@@ -303,7 +303,7 @@ def add_curve_with_y_cutoff_fill(
 
     if side:
         # Normal force and twisting moment
-        a = int((2 if double else 1) *(np.max(x) - np.min(x))/0.2)
+        a = int((2 if double else 1) *(np.max(x) - np.min(x))/0.5)
         b_size = len(x)//a    
         x_size = (x[b_size] - x[0])/2
         for i in range(a):
@@ -311,12 +311,12 @@ def add_curve_with_y_cutoff_fill(
                 if (y[i * b_size] + y[(i+1) * b_size if (i+1) * b_size < len(x) else i * b_size])/2 > y_cutoff + 0.1 and (i % 2 == 0 if double else True):
                     fig = add_vector(fig, (x[i * b_size], y_cutoff + 0.1), (x[(i + 1) * b_size], y_cutoff + 0.1), arrow_color=curve_color, arrow_width=1.5)
                     if double:
-                        fig = add_vector(fig, (x[i * b_size] + x_size, y_cutoff + 0.1), (x[(i + 1) * b_size] + x_size, y_cutoff + 0.1), arrow_color=curve_color, arrow_width=1.5)
+                        fig = add_vector(fig, (x[i * b_size] + x_size, y_cutoff + 0.1), (x[(i + 1) * b_size] + x_size*0.75, y_cutoff + 0.1), arrow_color=curve_color, arrow_width=1.5)
             else:
                 if (y[i * b_size] + y[(i+1) * b_size if (i+1) * b_size < len(x) else i * b_size])/2 > y_cutoff + 0.1 and (i % 2 == 0 if double else True):
                     fig = add_vector(fig, (x[(i + 1) * b_size], y_cutoff + 0.1), (x[i * b_size], y_cutoff + 0.1), arrow_color=curve_color, arrow_width=1.5)            
                     if double:
-                        fig = add_vector(fig, (x[(i + 1) * b_size] + x_size, y_cutoff + 0.1), (x[i * b_size] + x_size, y_cutoff + 0.1), arrow_color=curve_color, arrow_width=1.5)            
+                        fig = add_vector(fig, (x[(i + 1) * b_size] + x_size*0.75, y_cutoff + 0.1), (x[i * b_size] + x_size, y_cutoff + 0.1), arrow_color=curve_color, arrow_width=1.5)            
     else:
         for i in range(a):
             if y[i * b_size] - y_cutoff > c_size/2:
@@ -742,5 +742,104 @@ def add_semicircle_arrow(
             font=label_font,
             xanchor="center"
         )
+
+    return fig
+
+def add_hline_label(
+    fig,
+    y,
+    x_start,
+    x_end,
+    text,
+    line_color="black",
+    line_width=2,
+    font_color="black",
+    font_size=14,
+    xanchor="center",
+    yanchor="top",
+    xshift=0,
+    yshift=-5
+):
+    """
+    Add a horizontal line with a centered label beneath it.
+
+    Parameters:
+      fig         : plotly.graph_objects.Figure to which shapes/annotations are added.
+      y           : y‐coordinate where the line is drawn.
+      x_start     : x‐coordinate of the line’s left end.
+      x_end       : x‐coordinate of the line’s right end.
+      text        : the label string to place under the line.
+      line_color  : color of the line (default 'black').
+      line_width  : thickness of the line (default 2).
+      font_color  : color of the label text (default 'black').
+      font_size   : font size of the label (default 14).
+      xanchor     : horizontal anchor of the text ('left'|'center'|'right').
+      yanchor     : vertical anchor of the text ('top'|'middle'|'bottom').
+      xshift      : horizontal pixel shift of the label (default 0).
+      yshift      : vertical pixel shift of the label (default −5, i.e. 5px below the line).
+    Returns:
+      go.Figure: the updated figure.
+    """
+    # 1) draw the horizontal line
+    fig.add_shape(
+        type="line",
+        xref="x", yref="y",
+        x0=x_start, y0=y,
+        x1=x_end,   y1=y,
+        line=dict(color=line_color, width=line_width),
+    )
+    
+    # 2) place the label centered under the line
+    mid_x = (x_start + x_end) / 2
+    fig.add_annotation(
+        x=mid_x,
+        y=y,
+        text=text,
+        showarrow=False,
+        xref="x",
+        yref="y",
+        xanchor=xanchor,
+        yanchor=yanchor,
+        xshift=xshift,
+        yshift=yshift,
+        font=dict(color=font_color, size=font_size),
+    )
+
+    # looks cleaner without using arrows, but left here just in case
+    # fig.add_annotation(
+    #     x=x_start,  # arrow head x-coordinate
+    #     y=y,  # arrow head y-coordinate
+    #     ax=mid_x,  # arrow tail x-coordinate
+    #     ay=y,  # arrow tail y-coordinate
+    #     showarrow=True,
+    #     arrowhead=1,
+    #     arrowwidth=2,
+    #     arrowcolor=font_color,
+    #     axref="x",
+    #     ayref="y",
+    #     xref="x",
+    #     yref="y",
+    #     xanchor=xanchor,
+    #     yanchor='bottom',
+    #     font=dict(color=font_color, size=16)
+    # )    
+
+    # fig.add_annotation(
+    #     x=x_end,  # arrow head x-coordinate
+    #     y=y,  # arrow head y-coordinate
+    #     ax=mid_x,  # arrow tail x-coordinate
+    #     ay=y,  # arrow tail y-coordinate
+    #     showarrow=True,
+    #     arrowhead=1,
+    #     arrowwidth=2,
+    #     arrowcolor=font_color,
+    #     axref="x",
+    #     ayref="y",
+    #     xref="x",
+    #     yref="y",
+    #     xanchor=xanchor,
+    #     yanchor='bottom',
+    #     font=dict(color=font_color, size=16)
+    # )  
 
     return fig
