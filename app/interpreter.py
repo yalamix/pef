@@ -2,6 +2,7 @@ from typing import List
 from .graph import *
 from sympy import *
 from .utils import *
+from copy import copy
 import json
 
 BEAM_HEIGHT = 0.5
@@ -10,6 +11,10 @@ DEFAULT_BEAM = {
     "beam_size": 5,
     "variables": {
         "L": 5
+    },
+    "points": {
+        "A": 0,
+        "B": 'L'
     },
     "links": [],
     "shear_forces": [],
@@ -41,6 +46,7 @@ class BeamProblem:
         b = json.loads(definition)
         self.beam_size = b['beam_size']
         self.variables = b['variables']
+        self.points = b['points']
         self.links = b['links']
         self.shear_forces = b['shear_forces']
         self.normal_forces = b['normal_forces']
@@ -74,6 +80,7 @@ class BeamProblem:
         b = {}
         b['beam_size'] = self.beam_size
         b['variables'] = self.variables
+        b['points'] = self.points
         b['links'] = self.links
         b['shear_forces'] = self.shear_forces
         b['normal_forces'] = self.normal_forces
@@ -81,7 +88,7 @@ class BeamProblem:
         b['bending_moments'] = self.bending_moments
         return b
     
-    def _update_variables(self, expr: str, default: float = 1) -> None:
+    def _update_variables(self, expr: str, default: float = 1) -> str:
         """
         Updates the variable list.   
 
@@ -91,8 +98,13 @@ class BeamProblem:
         """          
         new_symbols = parse_and_update_symbols(expr, list(self.variables.keys()))
         for s in new_symbols:
-            if s not in self.variables:
-                self.variables[s] = default     
+            if s not in self.variables and s not in self.protected_symbols:
+                self.variables[s] = default
+            if s not in self.variables and s in self.protected_symbols:
+                sn = s + '_1'
+                self.variables[sn] = default
+                expr = expr.replace(s,sn)
+        return expr
     
     def _get_symbols(self) -> dict[Symbol]:
         """
@@ -104,9 +116,50 @@ class BeamProblem:
         return {name: Symbol(name) for name in list(self.variables.keys()) + self.protected_symbols}
         
     def _ev(self, expr: str) -> float:
-        return float(sympify(expr, locals=self._get_symbols()).evalf(subs=self.variables))
+        """
+        Evaluates a Sympy expression.
 
-    def assert_link_consistency(self, link_type: str, position: float) -> bool:
+        Returns:
+            Resulting value.
+        """ 
+        if isinstance(expr, float) or isinstance(expr, int):
+            return expr
+        return float(sympify(expr, locals=self._get_symbols()).evalf(subs=self.variables))
+    
+    def _get_and_add_point(self, pos: str) -> str:
+        """
+        Adds a new point of interest and returns it.
+
+        Returns:
+            current: Newly added point.        
+        """
+        last_point = 'A'
+        for point in self.points:
+            last_point = point
+            if self._ev(self.points[point]) > self._ev(pos):
+                break
+        current = last_point            
+        old_points = copy(self.points)
+        print()
+        for point in old_points:
+            if ord(point) == ord(last_point):
+                self.points[last_point] = pos
+                self.points[chr(ord(point) + 1)] = old_points[point]
+                last_point = chr(ord(point) + 1)
+                pos = self.points[last_point]
+        return current
+    
+    def _enforce_reaction_consistency(self) -> None:
+        """
+        Enforces reaction naming convention.
+        """
+        for point in self.points:
+            for force in self.shear_forces:
+                if 'R_y_' in force['value'] and force['n'] < 0:
+                    if self._ev(force['start']) == self._ev(self.points[point]):
+                        force['value'] = f'R_y_{point}'
+
+    def _assert_link_consistency(self, link_type: str, position: float) -> bool:
         """
         Makes sure that two links don't occupy the same position.
 
@@ -174,23 +227,27 @@ class BeamProblem:
             position = float(position)
         except:
             if position not in self.variables:
-                self._update_variables(position)
+                position = self._update_variables(position)
 
-        if self.assert_link_consistency(link_type, position):
+        if self._assert_link_consistency(link_type, position):
             if link_type == 'cantilever':
                 if self._ev(position) < self.beam_size/2:
                     position = 0
                 else:
-                    position = self.beam_size
+                    position = 'L'
             if self._ev(position) < 0:
                 position = 0
             if self._ev(position) > self.beam_size:
-                position = self.beam_size
+                position = 'L'
+            if link_type in ('fixed_support', 'mobile_support') and (0 < self._ev(position) < self.beam_size):
+                link_point = self._get_and_add_point(position)
+                self.add_shear_force(f'R_y_{link_point}', position, position, -1, True, True)
+                self._enforce_reaction_consistency()
             self.links.append({link_type: position})
             return True
         return False
 
-    def _create_load(self, value: str, start: str, stop: str, n: int, pos: bool = True) -> dict:
+    def _create_load(self, value: str, start: str, stop: str, n: int, pos: bool = True, reaction: bool = False) -> dict:
         """
         Creates a load (force or moment).   
 
@@ -204,18 +261,22 @@ class BeamProblem:
         if value not in self.variables:
             try:
                 float(value)
-            except:     
-                self._update_variables(value)
+            except:
+                if reaction:
+                    if reaction not in self.protected_symbols:
+                        self.protected_symbols.append(value)
+                else:
+                    value = self._update_variables(value)
         if start not in self.variables:
             try:
                 float(start)
             except:     
-                self._update_variables(start)
+                start = self._update_variables(start)
         if stop not in self.variables:
             try:
                 float(stop)
             except:     
-                self._update_variables(stop, 2)
+                stop = self._update_variables(stop, 2)
 
         # if n >= 0 assert stop > start
         if n >= 0:
@@ -232,10 +293,11 @@ class BeamProblem:
                 "start": start,
                 "stop": stop,
                 "n": n,
-                "pos": pos
+                "pos": pos,
+                "r": reaction
             }          
 
-    def add_shear_force(self, value: str, start: str, stop: str, n: int, pos: bool = True):
+    def add_shear_force(self, value: str, start: str, stop: str, n: int, pos: bool = True, reaction: bool = False):
         """
         Adds a concentrated or distributed shear force.   
 
@@ -246,7 +308,7 @@ class BeamProblem:
             n         : Exponent of the polynomial representing the force.
             pos         : True if the force is positive, False otherwise.
         """ 
-        self.shear_forces.append(self._create_load(value, start, stop, n, pos))  
+        self.shear_forces.append(self._create_load(value, start, stop, n, pos, reaction))  
 
     def add_normal_force(self, value: str, start: str, stop: str, n: int, pos: bool = True):
         """
@@ -297,7 +359,7 @@ class BeamProblem:
         Returns:
             out: Latex string of the load expression.
         """          
-        x = symbols('x', positive=True)
+        x = symbols('x')
         try:
             p = float(force['value'])
         except:
@@ -315,7 +377,13 @@ class BeamProblem:
         Returns:
             b: The list of latex strings.
         """        
-        return [self._get_load_expression(load) for load in loads]        
+        b = []
+        for load in loads:
+            if load['n'] < 0 and (self._ev(load['start']) == 0 or self._ev(load['start'] == self.beam_size)):
+                continue
+            else:
+                b.append(self._get_load_expression(load))
+        return b
 
     def get_normal_forces(self) -> List[str]:
         """
@@ -364,8 +432,7 @@ class BeamProblem:
 
     def calculate_boundary_conditions(self):
         """
-        """
-        
+        """    
 
     def graph(self) -> go.Figure:
         """
@@ -378,7 +445,11 @@ class BeamProblem:
         self.fig = plot_rectangle(self.beam_size, BEAM_HEIGHT, BEAM_COLOR)
 
         # Add the x and y axis arrows
-        self.fig = add_axis_arrows(self.fig)
+        self.fig = add_axis_arrows(self.fig, BEAM_HEIGHT)
+
+        # Add points of interest
+        for point in self.points:
+            self.fig = add_label(self.fig, self._ev(self.points[point]), -2 * BEAM_HEIGHT, point)
 
         # Add the links
         for link in self.links:
@@ -398,14 +469,20 @@ class BeamProblem:
             if force['n'] < 0:
                 if self._ev(force['start']) < self.beam_size:
                     if force['pos']:
-                        self.fig = add_vector(self.fig, (self._ev(force['start']), BEAM_HEIGHT), (self._ev(force['start']), BEAM_HEIGHT + 1), format_subs(force['value']))
+                        if force['r']:
+                            self.fig = add_vector(self.fig, (self._ev(force['start']), -1.5*BEAM_HEIGHT), (self._ev(force['start']), -BEAM_HEIGHT/2), format_subs(force['value']), 'red')
+                        else:
+                            self.fig = add_vector(self.fig, (self._ev(force['start']), BEAM_HEIGHT), (self._ev(force['start']), 2*BEAM_HEIGHT), format_subs(force['value']))
                     else:
-                        self.fig = add_vector(self.fig, (self._ev(force['start']), BEAM_HEIGHT + 1), (self._ev(force['start']), BEAM_HEIGHT), format_subs(force['value']))
+                        if force['r']:
+                            self.fig = add_vector(self.fig, (self._ev(force['start']), BEAM_HEIGHT/2), (self._ev(force['start']), -1.5*BEAM_HEIGHT), format_subs(force['value']), 'red')
+                        else:
+                            self.fig = add_vector(self.fig, (self._ev(force['start']), 2.45*BEAM_HEIGHT), (self._ev(force['start']), BEAM_HEIGHT), format_subs(force['value']))
                 else:
                     if force['pos']:
-                        self.fig = add_vector(self.fig, (self._ev(force['start']), BEAM_HEIGHT + 1), (self._ev(force['start']), BEAM_HEIGHT), format_subs(force['value']))                    
+                        self.fig = add_vector(self.fig, (self._ev(force['start']), 2.45*BEAM_HEIGHT), (self._ev(force['start']), BEAM_HEIGHT), format_subs(force['value']))                    
                     else:
-                        self.fig = add_vector(self.fig, (self._ev(force['start']), BEAM_HEIGHT), (self._ev(force['start']), BEAM_HEIGHT + 1), format_subs(force['value']))
+                        self.fig = add_vector(self.fig, (self._ev(force['start']), BEAM_HEIGHT), (self._ev(force['start']), 2*BEAM_HEIGHT), format_subs(force['value']))
             else:
                 x = np.linspace(self._ev(force['start']), self._ev(force['stop']), 100)
                 if force['n'] == 0:

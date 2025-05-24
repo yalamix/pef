@@ -1,4 +1,4 @@
-from sympy import Float, Add, sympify, Symbol
+from sympy import Float, sympify, Symbol
 from sympy.printing.latex import LatexPrinter
 from PIL import Image
 import plotly.graph_objects as go
@@ -6,7 +6,7 @@ import io
 import base64
 
 class ThresholdLatexPrinter(LatexPrinter):
-    def __init__(self, *args, sci_min=-2, sci_max=5, **kwargs):
+    def __init__(self, *args, sci_min=-2, sci_max=4, **kwargs):
         super().__init__(*args, **kwargs)
         self.sci_min = sci_min
         self.sci_max = sci_max

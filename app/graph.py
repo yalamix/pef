@@ -60,6 +60,56 @@ def plot_rectangle(width, height,
     
     return fig
 
+def add_label(
+    fig,
+    x,
+    y,
+    text,
+    font_color="black",
+    font_size=16,
+    xanchor="center",
+    yanchor="middle",
+    xoffset=0,
+    yoffset=0,
+    **annotation_kwargs,
+):
+    """
+    Add a simple text label to a Plotly figure at (x,y).
+
+    Parameters:
+      fig              : plotly.graph_objects.Figure to add the label to.
+      x, y             : coordinates for the label position.
+      text             : the string to render.
+      font_color       : text color (default 'black').
+      font_size        : font size (default 16).
+      xanchor          : horizontal anchor of the text
+                         ('auto', 'left', 'center', 'right').
+      yanchor          : vertical anchor of the text
+                         ('auto', 'top', 'middle', 'bottom').
+      xoffset          : additional x‐pixel offset (default 0).
+      yoffset          : additional y‐pixel offset (default 0).
+      **annotation_kwargs : any extra keyword args passed to
+                            fig.add_annotation(...) (e.g. `font_family`, `bgcolor`, etc.)
+
+    Returns:
+      The updated Plotly Figure.
+    """
+    fig.add_annotation(
+        x=x,
+        y=y,
+        text=text,
+        showarrow=False,
+        xref="x",
+        yref="y",
+        xanchor=xanchor,
+        yanchor=yanchor,
+        xshift=xoffset,
+        yshift=yoffset,
+        font=dict(color=font_color, size=font_size),
+        **annotation_kwargs,
+    )
+    return fig
+
 def add_vector(fig, tail, head, label=None, arrow_color='black', arrow_width=2, arrow_head=3, xanchor="auto", yanchor="top"):
     """
     Add a vector as an arrow with a text label to a Plotly figure.
@@ -97,7 +147,7 @@ def add_vector(fig, tail, head, label=None, arrow_color='black', arrow_width=2, 
     )
     return fig
 
-def add_axis_arrows(fig):
+def add_axis_arrows(fig, rec_height):
     """
     Adds x and y axis arrows.
     
@@ -107,8 +157,9 @@ def add_axis_arrows(fig):
     Returns:
       The updated Plotly figure.
     """    
-    fig = add_vector(fig, (0, 0), (0.25, 0), 'x', "rgba(0,0,0,0.5)")
-    fig = add_vector(fig, (0, 0), (0, 0.25), 'y', "rgba(0,0,0,0.5)", xanchor="right", yanchor="bottom")
+    r = rec_height/2
+    fig = add_vector(fig, (0, r), (0.25, 0 + r), 'x', "rgba(0,0,0,0.5)")
+    fig = add_vector(fig, (0, r), (0, 0.25 + r), 'y', "rgba(0,0,0,0.5)", xanchor="right", yanchor="bottom")
     return fig
 
 def add_curve_with_y_cutoff_fill(
@@ -125,6 +176,7 @@ def add_curve_with_y_cutoff_fill(
     """
     Adds a curve to the figure and fills the area between the curve and a horizontal
     line at y = y_cutoff for regions where the curve is above the cutoff.
+    Also adds vertical arrows (or horizontal if side is True) from the curve to y_cutoff.
     Optionally, an annotation is placed above the curve.
     
     Parameters:
@@ -246,7 +298,8 @@ def add_curve_with_y_cutoff_fill(
     
     # Add arrows
     a = int((np.max(x) - np.min(x))/0.2)
-    b_size = len(x)//a    
+    b_size = len(x)//a
+    c_size = (np.max(x) - np.min(x))/a
 
     if side:
         # Normal force and twisting moment
@@ -266,14 +319,16 @@ def add_curve_with_y_cutoff_fill(
                         fig = add_vector(fig, (x[(i + 1) * b_size] + x_size, y_cutoff + 0.1), (x[i * b_size] + x_size, y_cutoff + 0.1), arrow_color=curve_color, arrow_width=1.5)            
     else:
         for i in range(a):
+            if y[i * b_size] - y_cutoff > c_size/2:
+                if up:
+                    fig = add_vector(fig, (x[i * b_size], y_cutoff), (x[i * b_size], y[i * b_size]), arrow_color=curve_color, xanchor='left')
+                else:
+                    fig = add_vector(fig, (x[i * b_size], y[i * b_size]), (x[i * b_size], y_cutoff), arrow_color=curve_color, xanchor='left')
+        if y[-1] - y_cutoff > c_size/2:                    
             if up:
-                fig = add_vector(fig, (x[i * b_size], y_cutoff), (x[i * b_size], y[i * b_size]), arrow_color=curve_color)
+                fig = add_vector(fig, (x[-1], y_cutoff), (x[-1], y[-1]), arrow_color=curve_color, xanchor='left')
             else:
-                fig = add_vector(fig, (x[i * b_size], y[i * b_size]), (x[i * b_size], y_cutoff), arrow_color=curve_color)
-        if up:
-            fig = add_vector(fig, (x[-1], y_cutoff), (x[-1], y[-1]), arrow_color=curve_color)
-        else:
-            fig = add_vector(fig, (x[-1], y[-1]), (x[-1], y_cutoff), arrow_color=curve_color)                
+                fig = add_vector(fig, (x[-1], y[-1]), (x[-1], y_cutoff), arrow_color=curve_color, xanchor='left')                
     
     return fig
 
