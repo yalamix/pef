@@ -57,7 +57,7 @@ async def solve(request: Request, session_id: str = Cookie(None, alias="session_
     BP = BeamProblem(json.dumps(session.problem[0].parameters))     
     result = BP.solve()
     return templates.TemplateResponse(
-        request=request, name="solution.html", context={'result': result}
+        request=request, name="solution.html", context={'result': result, 'len': len}
     )
 
 @app.get("/get_variables", response_class=HTMLResponse)
@@ -226,6 +226,7 @@ async def variable(
 async def shear(
         request: Request,
         force_value: str = Form(...),
+        force_value_min: str = Form(...),
         pos: int = Form(...),
         n: int = Form(...),
         start: str = Form(...),
@@ -235,7 +236,7 @@ async def shear(
     ):
     session = db.query(UserSession).where(UserSession.id == session_id).first()
     BP = BeamProblem(json.dumps(session.problem[0].parameters))
-    BP.add_shear_force(force_value, start.replace(',','.'), stop.replace(',','.'), n, pos)
+    BP.add_shear_force(force_value, force_value_min, start.replace(',','.'), stop.replace(',','.'), n, pos)
     session.problem[0].parameters = BP.to_dict()
     db.commit()    
     context = {
@@ -250,6 +251,7 @@ async def shear(
 async def normal(
         request: Request,
         force_value: str = Form(...),
+        force_value_min: str = Form(...),
         pos: int = Form(...),
         n: int = Form(...),
         start: str = Form(...),
@@ -259,7 +261,7 @@ async def normal(
     ):
     session = db.query(UserSession).where(UserSession.id == session_id).first()
     BP = BeamProblem(json.dumps(session.problem[0].parameters))
-    BP.add_normal_force(force_value, start.replace(',','.'), stop.replace(',','.'), n, pos)
+    BP.add_normal_force(force_value, force_value_min, start.replace(',','.'), stop.replace(',','.'), n, pos)
     session.problem[0].parameters = BP.to_dict()
     db.commit()    
     context = {
@@ -274,6 +276,7 @@ async def normal(
 async def bending(
         request: Request,
         force_value: str = Form(...),
+        force_value_min: str = Form(...),
         pos: int = Form(...),
         n: int = Form(...),
         start: str = Form(...),
@@ -283,7 +286,7 @@ async def bending(
     ):
     session = db.query(UserSession).where(UserSession.id == session_id).first()
     BP = BeamProblem(json.dumps(session.problem[0].parameters))
-    BP.add_bending_moment(force_value, start.replace(',','.'), stop.replace(',','.'), n, pos)
+    BP.add_bending_moment(force_value, force_value_min, start.replace(',','.'), stop.replace(',','.'), n, pos)
     session.problem[0].parameters = BP.to_dict()
     db.commit()    
     context = {
@@ -298,6 +301,7 @@ async def bending(
 async def twisting(
         request: Request,
         force_value: str = Form(...),
+        force_value_min: str = Form(...),
         pos: int = Form(...),
         n: int = Form(...),
         start: str = Form(...),
@@ -307,7 +311,7 @@ async def twisting(
     ):
     session = db.query(UserSession).where(UserSession.id == session_id).first()
     BP = BeamProblem(json.dumps(session.problem[0].parameters))
-    BP.add_twisting_moment(force_value, start.replace(',','.'), stop.replace(',','.'), n, pos)
+    BP.add_twisting_moment(force_value, force_value_min, start.replace(',','.'), stop.replace(',','.'), n, pos)
     session.problem[0].parameters = BP.to_dict()
     db.commit()    
     context = {

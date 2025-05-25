@@ -884,7 +884,7 @@ def create_filled_line_figure(
     fig.update_layout(
         title_text = title_text,
         xaxis_title='x',
-        yaxis_title='y'
+        yaxis_title=title_text
     )
 
     return fig

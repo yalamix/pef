@@ -3,13 +3,21 @@
 <h3 class="text-base font-semibold text-gray-900" id="modal-title">Adicionar {{ force }}</h3>
 <form class="mt-4" hx-post="{{ route }}" hx-swap="innerHTML settle:3s" hx-target="#toast">
   <div class="mt-4">
-    <label for="force_value" class="block text-sm/6 font-medium text-gray-900">Valor</label>
+    <label for="force_value" class="block text-sm/6 font-medium text-gray-900">Valor máximo</label>
     <div class="mt-2">
       <div class="flex items-center rounded-md bg-white pl-3 outline-1 -outline-offset-1 outline-gray-300 has-[input:focus-within]:outline-2 has-[input:focus-within]:-outline-offset-2 has-[input:focus-within]:outline-indigo-600">        
         <input type="text" name="force_value" value="1" id="force_value" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 text-gray-900">          
       </div>
     </div>
   </div>
+  <div class="mt-4 hidden" id="min_block">
+    <label for="force_value_min" class="block text-sm/6 font-medium text-gray-900">Valor mínimo</label>
+    <div class="mt-2">
+      <div class="flex items-center rounded-md bg-white pl-3 outline-1 -outline-offset-1 outline-gray-300 has-[input:focus-within]:outline-2 has-[input:focus-within]:-outline-offset-2 has-[input:focus-within]:outline-indigo-600">        
+        <input type="text" name="force_value_min" value="" id="force_value_min" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 text-gray-900">          
+      </div>
+    </div>
+  </div>  
   <div class="mt-4">
     <label for="n" class="block text-sm/6 font-medium text-gray-900">Função de singularidade</label>
     <div class="mt-2">
@@ -20,6 +28,7 @@
             if span.id is 'n' + my.value then remove .hidden from it else add .hidden to it end            
         end   
         if my.value < 0 then add .hidden to #stop_block else remove .hidden from #stop_block end     
+        if my.value < 1 then add .hidden to #min_block else remove .hidden from #min_block end
       " name="n" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 text-gray-900">
             {% if 'fletor' in force %}
             <option value="-2">Momento concentrado</option>

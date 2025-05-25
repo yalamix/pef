@@ -329,7 +329,7 @@ class BeamProblem:
             return True
         return False
 
-    def _create_load(self, value: str, start: str, stop: str, n: int, pos: bool = True, reaction: bool = False) -> dict:
+    def _create_load(self, value: str, value_min: str, start: str, stop: str, n: int, pos: bool = True, reaction: bool = False) -> dict:
         """
         Creates a load (force or moment).   
 
@@ -349,6 +349,17 @@ class BeamProblem:
                         self.protected_symbols.append(value)
                 else:
                     value = self._update_variables(value)
+        if value_min == '':
+            value_min = 0
+        if value_min not in self.variables:
+            try:
+                float(value_min)
+            except:
+                if reaction:
+                    if reaction not in self.protected_symbols:
+                        self.protected_symbols.append(value_min)
+                else:
+                    value_min = self._update_variables(value_min)                    
         if start not in self.variables:
             try:
                 float(start)
@@ -378,6 +389,7 @@ class BeamProblem:
 
         return {
                 "value": value,
+                "value_min": value_min,
                 "start": start,
                 "stop": stop,
                 "n": n,
@@ -385,7 +397,7 @@ class BeamProblem:
                 "r": reaction
             }          
 
-    def add_shear_force(self, value: str, start: str, stop: str, n: int, pos: bool = True, reaction: bool = False):
+    def add_shear_force(self, value: str, value_min: str, start: str, stop: str, n: int, pos: bool = True, reaction: bool = False):
         """
         Adds a concentrated or distributed shear force.   
 
@@ -396,9 +408,9 @@ class BeamProblem:
             n         : Exponent of the polynomial representing the force.
             pos         : True if the force is positive, False otherwise.
         """ 
-        self.shear_forces.append(self._create_load(value, start, stop, n, pos, reaction))  
+        self.shear_forces.append(self._create_load(value, value_min, start, stop, n, pos, reaction))  
 
-    def add_normal_force(self, value: str, start: str, stop: str, n: int, pos: bool = True):
+    def add_normal_force(self, value: str, value_min: str, start: str, stop: str, n: int, pos: bool = True, reaction: bool = False):
         """
         Adds a concentrated or distributed normal force.   
 
@@ -409,9 +421,9 @@ class BeamProblem:
             n         : Exponent of the polynomial representing the force.
             pos         : True if the force is positive, False otherwise.
         """       
-        self.normal_forces.append(self._create_load(value, start, stop, n, pos))  
+        self.normal_forces.append(self._create_load(value, value_min, start, stop, n, pos, reaction))  
 
-    def add_twisting_moment(self, value: str, start: str, stop: str, n: int, pos: bool = True):
+    def add_twisting_moment(self, value: str, value_min: str, start: str, stop: str, n: int, pos: bool = True, reaction: bool = False):
         """
         Adds a concentrated or distributed twisting moment.   
 
@@ -422,9 +434,9 @@ class BeamProblem:
             n         : Exponent of the polynomial representing the moment.
             pos         : True if the moment is positive, False otherwise.
         """        
-        self.twisting_moments.append(self._create_load(value, start, stop, n, pos))  
+        self.twisting_moments.append(self._create_load(value, value_min, start, stop, n, pos, reaction))  
 
-    def add_bending_moment(self, value: str, start: str, stop: str, n: int, pos: bool = True):
+    def add_bending_moment(self, value: str, value_min: str, start: str, stop: str, n: int, pos: bool = True, reaction: bool = False):
         """
         Adds a concentrated or distributed bending moment.   
 
@@ -435,7 +447,7 @@ class BeamProblem:
             n         : Exponent of the polynomial representing the moment.
             pos         : True if the moment is positive, False otherwise.
         """        
-        self.bending_moments.append(self._create_load(value, start, stop, n, pos))
+        self.bending_moments.append(self._create_load(value, value_min, start, stop, n, pos, reaction))
     
     def _get_load_equation(self, force: dict):
         x = symbols('x')
@@ -443,18 +455,32 @@ class BeamProblem:
             p = float(force['value'])
         except:
             p = self._s(force['value'])
+        try:
+            q = float(force['value_min'])
+        except:
+            q = self._s(force['value_min'])        
         if not force['pos']:
             p = -p
+            q = -q
+        x_ = self._s(f"({force['stop']})-({force['start']})")
+        y_ = (p-q)
+        r = y_/x_
         if self._ev(force['stop']) < self.beam_size and force['n'] >= 0:
             if force['n'] <= 0:
                 eq = p * SingularityFunction(x, self._s(force['start']), force['n']) - p * SingularityFunction(x, self._s(force['stop']), force['n'])
             else:
-                eq = Rational(p,2,gcd=1) * SingularityFunction(x, self._s(force['start']), force['n']) - Rational(p,2,gcd=1) * SingularityFunction(x, self._s(force['stop']), force['n'])
+                if self._ev(force['start']) == 0:
+                    eq = r * SingularityFunction(x, self._s(force['start']), force['n']) - r * SingularityFunction(x, self._s(force['stop']), force['n'])
+                else:
+                    eq = q * SingularityFunction(x, self._s(force['start']), 0) + r * SingularityFunction(x, self._s(force['start']), force['n']) - r * SingularityFunction(x, self._s(force['stop']), force['n'])
         else:
             if force['n'] <= 0:
                 eq = p * SingularityFunction(x, self._s(force['start']), force['n'])
             else:
-                eq = Rational(p,2,gcd=1) * SingularityFunction(x, self._s(force['start']), force['n'])
+                if self._ev(force['start']) == 0:
+                    eq = r * SingularityFunction(x, self._s(force['start']), force['n'])
+                else:
+                    eq = q * SingularityFunction(x, self._s(force['start']), 0) + r * SingularityFunction(x, self._s(force['start']), force['n'])
         return eq
     
     def _get_load_expression(self, force: dict) -> str:
@@ -754,25 +780,23 @@ class BeamProblem:
                         else:
                             sb = float(cond.lhs.args[0])
                         sol = solve(Eq(cond.rhs, p),k)[0]
-                        print(sol, sb)
-                        try:
-                            sol = simplify(eval_all_singularities(Eq(k, sol), x, sb))
-                        except:
-                            sol = simplify(Eq(k, sol.subs(x, sb)))
+                        constant_det[str(k)].append(latex_with_threshold(Eq(k, sol).subs(x, sb)))
+                        for const in constant_value:
+                            sol = sol.subs(const, constant_value[const])
+                        if isinstance(sb, Symbol):
+                            sol = Eq(k, sol).subs(x, sb).subs(sb, vardict[sb]).evalf()
+                        else:
+                            sol = Eq(k, sol).subs(x, sb).evalf()
+                        for v in vardict:
+                            if str(v) != str(sb):
+                                sol = sol.subs(v, vardict[v], evaluate=False)
                         print(sol)
                         constant_det[str(k)].append(latex_with_threshold(sol))
-                        if latex_with_threshold(sol.evalf(subs=vardict)) != latex_with_threshold(sol):
+                        if latex_with_threshold(sol.evalf(subs=vardict)) != latex_with_threshold(sol):                            
                             constant_det[str(k)].append(latex_with_threshold(sol.evalf(subs=vardict)))
-                        # sanity check
-                        print("Before sub:", sol.rhs, "free symbols:", sol.rhs.free_symbols)
-                        sym = list(sol.free_symbols)
-                        if len(sym) > 0:
-                            print("After sub:", sol.rhs.subs(sym[0], 5).evalf())
-                        #
-                        print("Before evalf:", sol.rhs, "free symbols:", sol.rhs.free_symbols)
-                        print("Subs dictionary:", vardict)
-                        print("After evalf:", sol.rhs.evalf(subs=vardict),'\n')   
                         constant_value[str(k)] = sol.rhs.evalf(subs=vardict)
+                        # remove duplicates
+                        constant_det[str(k)] = list(dict.fromkeys(constant_det[str(k)]))
                         if len(constant_det.keys()) == total_unknowns:
                             break
                     if cond.has(f['u']):
@@ -786,38 +810,41 @@ class BeamProblem:
                             cond.xreplace({cond.lhs.args[0]: sb})
                         else:
                             sb = float(cond.lhs.args[0])
-                        try:
-                            sol = simplify(eval_all_singularities(Eq(k, solve(Eq(cond.rhs, p),k)[0]), x, sb))
-                        except:
-                            sol = simplify(Eq(k, solve(Eq(cond.rhs, p),k)[0].subs(x, sb)))
+                        sol = solve(Eq(cond.rhs, p),k)[0]
+                        constant_det[str(k)].append(latex_with_threshold(Eq(k, sol).subs(x, sb)))
+                        for const in constant_value:
+                            sol = sol.subs(const, constant_value[const])
+                        if isinstance(sb, Symbol):
+                            sol = Eq(k, sol).subs(x, sb).subs(sb, vardict[sb]).evalf()
+                        else:
+                            sol = Eq(k, sol).subs(x, sb).evalf()
+                        for v in vardict:
+                            if str(v) != str(sb):
+                                sol = sol.subs(v, vardict[v], evaluate=False)                         
                         constant_det[str(k)].append(latex_with_threshold(sol))
                         if latex_with_threshold(sol.evalf(subs=vardict)) != latex_with_threshold(sol):
-                            constant_det[str(k)].append(latex_with_threshold(sol.evalf(subs=vardict)))
-                        # sanity check
-                        print("Before sub:", sol.rhs, "free symbols:", sol.rhs.free_symbols)
-                        sym = list(sol.free_symbols)
-                        if len(sym) > 0:
-                            print("After sub:", sol.rhs.subs(sym[0], 5).evalf())
-                        #
-                        print("Before evalf:", sol.rhs, "free symbols:", sol.rhs.free_symbols)
-                        print("Subs dictionary:", vardict)
-                        print("After evalf:", sol.rhs.evalf(subs=vardict),'\n')                       
+                            constant_det[str(k)].append(latex_with_threshold(sol.evalf(subs=vardict)))                
                         constant_value[str(k)] = sol.rhs.evalf(subs=vardict)
+                        # remove duplicates
+                        constant_det[str(k)] = list(dict.fromkeys(constant_det[str(k)]))
                         if len(constant_det.keys()) == total_unknowns:
                             break                        
                 normal_block['constants'] = constant_det
-                for i in range(len(final_eqs)):
-                    x_axis = np.linspace(0, self.variables['L'])
-                    eq = final_eqs[i].subs(c[0],constant_value[str(c[0])]).subs(c[1],constant_value[str(c[1])]).evalf(subs=self._remove_protected_symbols(vardict))
-                    f = lambdify(x, eq.rhs, modules=[mapping, 'numpy'])
-                    plots[format_label(str(eq.lhs))] = fig_to_rotated_img(create_filled_line_figure(
-                        x_axis,
-                        f(x_axis),
-                        format_label(str(eq.lhs))
-                    ))
-                    final_eqs[i] = latex_with_threshold(eq)
-                normal_block['final_equations'] = final_eqs
-                normal_block['plots'] = plots
+                try:
+                    for i in range(len(final_eqs)):
+                        x_axis = np.linspace(0, self.variables['L'],1000)
+                        eq = final_eqs[i].subs(c[0],constant_value[str(c[0])]).subs(c[1],constant_value[str(c[1])]).evalf(subs=self._remove_protected_symbols(vardict))
+                        f = lambdify(x, eq.rhs, modules=[mapping, 'numpy'])
+                        plots[format_label(str(eq.lhs))] = fig_to_rotated_img(create_filled_line_figure(
+                            x_axis,
+                            f(x_axis),
+                            format_label(str(eq.lhs))
+                        ))
+                        final_eqs[i] = latex_with_threshold(eq)
+                    normal_block['final_equations'] = final_eqs
+                    normal_block['plots'] = plots
+                except:
+                    pass
 
             else:
                 normal_block['differential_equation'] = latex_with_threshold(Eq(Eq(Derivative(f['N_x'](x)), -f['p'](x)), -p, evaluate=False))
@@ -853,7 +880,7 @@ class BeamProblem:
                             break
                 normal_block['constants'] = constant_det
                 for i in range(len(final_eqs)):
-                    x_axis = np.linspace(0, self.variables['L'])
+                    x_axis = np.linspace(0, self.variables['L'],1000)
                     eq = final_eqs[i].subs(c[0],constant_value[str(c[0])]).evalf(subs=vardict)
                     f = lambdify(x, eq.rhs, modules=[mapping, 'numpy'])
                     plots[format_label(str(eq.lhs))] = fig_to_rotated_img(create_filled_line_figure(
@@ -865,7 +892,8 @@ class BeamProblem:
                 normal_block['final_equations'] = final_eqs
                 normal_block['plots'] = plots
         
-        solution_blocks.append(normal_block)
+        if 'differential_equation' in normal_block:
+            solution_blocks.append(normal_block)
 
         return solution_blocks
 
@@ -924,12 +952,13 @@ class BeamProblem:
                     else:
                         self.fig = add_vector(self.fig, (self._ev(force['start']), HEIGHT), (self._ev(force['start']), 2*HEIGHT), format_subs(force['value']))
             else:
-                x = np.linspace(self._ev(force['start']), self._ev(force['stop']), 100)
+                x = np.linspace(self._ev(force['start']), self._ev(force['stop']), 1000)
                 if force['n'] == 0:
                     y = [2* HEIGHT for i in range(len(x))]
                 else:
-                    y = (x - self._ev(force['start'])) ** force['n']
-                    y = (y-np.min(y))/(np.max(y)-np.min(y)) + HEIGHT
+                    f = lambdify(symbols('x'), self._get_load_equation(force).evalf(subs=self._get_symbol_value()), modules=[mapping, 'numpy'])
+                    y = np.array(f(x))
+                    y = (y-np.min(y))/(np.max(y)-np.min(y)) * HEIGHT + HEIGHT
                 self.fig = add_curve_with_y_cutoff_fill(self.fig, x, y, HEIGHT, format_subs(force['value']), up=force['pos'])
         
         # Add normal forces
@@ -946,12 +975,13 @@ class BeamProblem:
                     else:
                         self.fig = add_vector(self.fig, (self._ev(force['start']), HEIGHT/2), (self._ev(force['start']) + HEIGHT, HEIGHT/2), format_subs(force['value']))
             else:
-                x = np.linspace(self._ev(force['start']), self._ev(force['stop']), 100)
+                x = np.linspace(self._ev(force['start']), self._ev(force['stop']), 1000)
                 if force['n'] == 0:
                     y = [2* HEIGHT for i in range(len(x))]
                 else:
-                    y = (x - self._ev(force['start'])) ** force['n']
-                    y = (y-np.min(y))/(np.max(y)-np.min(y)) + HEIGHT
+                    f = lambdify(symbols('x'), self._get_load_equation(force).evalf(subs=self._get_symbol_value()), modules=[mapping, 'numpy'])
+                    y = np.array(f(x))
+                    y = (y-np.min(y))/(np.max(y)-np.min(y)) * HEIGHT + HEIGHT
                 self.fig = add_curve_with_y_cutoff_fill(self.fig, x, y, HEIGHT, format_subs(force['value']), up=force['pos'], side=True)
         
         # Add twisting moments
@@ -972,12 +1002,13 @@ class BeamProblem:
                         self.fig = add_vector(self.fig, (self._ev(moment['start']), HEIGHT/2), (self._ev(moment['start']) + 0.75*HEIGHT, HEIGHT/2), format_subs(moment['value']))
                         self.fig = add_vector(self.fig, (self._ev(moment['start']) + 0.7*HEIGHT, HEIGHT/2), (self._ev(moment['start']) + 1*HEIGHT, HEIGHT/2))
             else:
-                x = np.linspace(self._ev(moment['start']), self._ev(moment['stop']), 100)
+                x = np.linspace(self._ev(moment['start']), self._ev(moment['stop']), 1000)
                 if moment['n'] == 0:
                     y = [2* HEIGHT for i in range(len(x))]
                 else:
-                    y = (x - self._ev(moment['start'])) ** moment['n']
-                    y = (y-np.min(y))/(np.max(y)-np.min(y)) + HEIGHT
+                    f = lambdify(symbols('x'), self._get_load_equation(moment).evalf(subs=self._get_symbol_value()), modules=[mapping, 'numpy'])
+                    y = np.array(f(x))
+                    y = (y-np.min(y))/(np.max(y)-np.min(y)) * HEIGHT + HEIGHT
                 self.fig = add_curve_with_y_cutoff_fill(self.fig, x, y, HEIGHT, format_subs(moment['value']), up=moment['pos'], side=True, double=True)    
 
         # Add bending moments

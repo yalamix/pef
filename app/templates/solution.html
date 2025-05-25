@@ -1,39 +1,53 @@
-<div id="resolution" hx-get="/solve" hx-trigger="renderCanvas from:body" hx-swap="outerHTML" class="mt-4 mb-4 m-4 max-h-[75vh] overflow-y-auto border border-dashed border-gray-300 rounded-lg items-center justify-center flex-shrink-0">              
-    {% for solution in result %}
-        <h1 class="text-xl text-center font-semibold text-gray-700 uppercase tracking-wider">{{ solution['name'] }}</h1>
-        <div>
-            <h2 class="p-1 rounded-full">Equação do Carregamento:</h2>
-            <p>$$ {{ solution['load_equation'] }} $$</p>
-        </div>
-        <div>
-            <h2 class="p-1 rounded-full">Equação Diferencial de Equilíbrio:</h2>
-            <p>$$ {{ solution['differential_equation'] }} $$</p>
-        </div> 
-        <div>
-            <h2 class="p-1 rounded-full">Integração:</h2>
-            {% for step in solution['integration_steps'] %}
-            <p>$$ {{ step }} $$</p>
-            {% endfor %}
-        </div>    
-        <div>
-            <h2 class="p-1 rounded-full">Determinação das Constantes de Integração:</h2>
-            {% for constant in solution['constants'] %}
-                {% for step in solution['constants'][constant]%}
+<div id="resolution" hx-get="/solve" hx-trigger="renderCanvas from:body" hx-swap="outerHTML" class="mt-4 mb-4 m-4 max-h-[75vh] max-w-[36vw] overflow-y-auto border border-dashed border-gray-300 rounded-lg items-center justify-center flex-shrink-0">              
+    {% if len(result) > 0 %}
+        {% for solution in result %}
+            <h1 class="text-xl text-center font-semibold text-gray-700 uppercase tracking-wider">{{ solution['name'] }}</h1>
+            <div>
+                <h2 class="p-1 rounded-full">Equação do Carregamento:</h2>
+                <p>$$ {{ solution['load_equation'] }} $$</p>
+            </div>
+            <div>
+                <h2 class="p-1 rounded-full">Equação Diferencial de Equilíbrio:</h2>
+                <p>$$ {{ solution['differential_equation'] }} $$</p>
+            </div> 
+            <div>
+                <h2 class="p-1 rounded-full">Integração:</h2>
+                {% for step in solution['integration_steps'] %}
                 <p>$$ {{ step }} $$</p>
                 {% endfor %}
-            {% endfor %}
-        </div>   
-        <div>
-            <h2 class="p-1 rounded-full">Equações Finais:</h2>
-            {% for equation in solution['final_equations'] %}
-            <p>$$ {{ equation }} $$</p>
-            {% endfor %}
-        </div>       
-        <div>
-            <h2 class="p-1 rounded-full">Diagramas:</h2>
-            {% for plot in solution['plots'] %}            
-                {{ solution['plots'][plot] | safe }}
-            {% endfor %}
-        </div>                  
-    {% endfor %}
+            </div>    
+            <div>
+                <h2 class="p-1 rounded-full">Determinação das Constantes de Integração:</h2>
+                {% for constant in solution['constants'] %}
+                    {% for step in solution['constants'][constant]%}
+                    <p>$$ {{ step }} $$</p>
+                    {% endfor %}
+                {% endfor %}
+            </div>   
+            <div>
+                <h2 class="p-1 rounded-full">Equações Finais:</h2>
+                {% for equation in solution['final_equations'] %}
+                <p>$$ {{ equation }} $$</p>
+                {% endfor %}
+            </div>       
+            <div>
+                <h2 class="p-1 rounded-full">Diagramas:</h2>
+                {% for plot in solution['plots'] %}            
+                    {{ solution['plots'][plot] | safe }}
+                {% endfor %}
+            </div>                  
+        {% endfor %}    
+    {% else %}
+    <h1 class="text-xl text-center font-semibold text-gray-700 uppercase tracking-wider">Calculadora de Resistência dos Materiais</h1>
+    <p class="p-1 rounded-full">
+        <p>Olá! Para usar, basta utilizar a barra lateral para adicionar elementos à viga, como forças e vínculos. Você também é capaz de definir variáveis/constantes e seus respectivos valores.</p>
+        <p>É possível colocar a posição de objetos e valor de forças e momentos em termos analíticos, basta colocar na linguagem Python.</p>
+        <p>Por exemplo, é possível colocar um vínculo na posição 2L<sub>1</sub> + L<sub>2</sub>, basta digitar 2 * L_1 + L_2.</p>
+        <p>O underline serve para indicar subscritos, e o resto das operações é igual a manipular variáveis no Python.</p>
+        <p>Não se preocupe em definir essas variáveis, o programa faz automaticamente e depois você pode alterar o seus valores.</p>
+        <p>Não é necessário colocar o sinal dos valores das forças. Utilize a opção na janelinha.</p>
+        <p>Lembrando que nas pontas da vigas segue-se a convenção de Resmat e no meio segue-se a direção dos eixos.</p>
+        <p>Bons cálculos!</p>
+    </p>
+    {% endif %}
 </div>    
