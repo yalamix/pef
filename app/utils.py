@@ -1,10 +1,19 @@
-from sympy import Float, sympify, Symbol
+from sympy import Float, sympify, Symbol, Piecewise, Eq, simplify
+from sympy.assumptions.ask import ask
+from sympy.assumptions import Q
+from sympy.functions.special.singularity_functions import SingularityFunction
 from sympy.printing.latex import LatexPrinter
 from PIL import Image
 import plotly.graph_objects as go
+import numpy as np
 import io
 import base64
 import re
+
+mapping = {
+    'SingularityFunction':  # name that appears in the generated lambda
+        lambda x,a,n: np.where(x > a, (x - a)**n, 0)
+}
 
 class ThresholdLatexPrinter(LatexPrinter):
     def __init__(self, *args, sci_min=-2, sci_max=4, **kwargs):
@@ -38,6 +47,33 @@ class ThresholdLatexPrinter(LatexPrinter):
             self._print(aa),  # a
             self._print(nn),  # n
         )
+
+def eval_all_singularities(expr_eq: Eq, sub_symbol, sub_value):
+    """
+    For Eq(lhs, rhs) where rhs may be a sum of SingularityFunction(...) + const,
+    substitute sub_symbol → sub_value *inside* each SF, force its Piecewise
+    evaluation, and simplify the final result.
+    """
+    def _eval_one(sf: SingularityFunction):
+        # 1) rewrite this single SF → Piecewise, then substitute
+        pw = sf.rewrite(Piecewise).subs(sub_symbol, sub_value)
+        # 2) grab the branch‐condition (assumed on index 0)
+        cond = pw.args[0][1]
+        # 3) decide which branch holds under sub_value > 0
+        if ask(cond, Q.is_true(sub_value > 0)):
+            return pw.args[0][0]
+        else:
+            return pw.args[1][0]
+
+    # 4) apply to every SingularityFunction in the RHS
+    new_rhs = expr_eq.rhs.replace(
+        lambda e: isinstance(e, SingularityFunction),
+        lambda e: _eval_one(e)
+    )
+    # 5) simplify any remaining arithmetic
+    new_rhs = simplify(new_rhs)
+    # 6) rebuild the equality
+    return Eq(expr_eq.lhs, new_rhs)
 
 def format_label(text: str) -> str:
     """

@@ -307,16 +307,17 @@ def add_curve_with_y_cutoff_fill(
         b_size = len(x)//a    
         x_size = (x[b_size] - x[0])/2
         for i in range(a):
-            if up:
-                if (y[i * b_size] + y[(i+1) * b_size if (i+1) * b_size < len(x) else i * b_size])/2 > y_cutoff + 0.1 and (i % 2 == 0 if double else True):
-                    fig = add_vector(fig, (x[i * b_size], y_cutoff + 0.1), (x[(i + 1) * b_size], y_cutoff + 0.1), arrow_color=curve_color, arrow_width=1.5)
-                    if double:
-                        fig = add_vector(fig, (x[i * b_size] + x_size, y_cutoff + 0.1), (x[(i + 1) * b_size] + x_size*0.75, y_cutoff + 0.1), arrow_color=curve_color, arrow_width=1.5)
-            else:
-                if (y[i * b_size] + y[(i+1) * b_size if (i+1) * b_size < len(x) else i * b_size])/2 > y_cutoff + 0.1 and (i % 2 == 0 if double else True):
-                    fig = add_vector(fig, (x[(i + 1) * b_size], y_cutoff + 0.1), (x[i * b_size], y_cutoff + 0.1), arrow_color=curve_color, arrow_width=1.5)            
-                    if double:
-                        fig = add_vector(fig, (x[(i + 1) * b_size] + x_size*0.75, y_cutoff + 0.1), (x[i * b_size] + x_size, y_cutoff + 0.1), arrow_color=curve_color, arrow_width=1.5)            
+            if (i + 1) * b_size < len(y) - 1:
+                if up:
+                    if (y[i * b_size] + y[(i+1) * b_size if (i+1) * b_size < len(x) else i * b_size])/2 > y_cutoff + 0.1 and (i % 2 == 0 if double else True):
+                        fig = add_vector(fig, (x[i * b_size], y_cutoff + 0.1), (x[(i + 1) * b_size], y_cutoff + 0.1), arrow_color=curve_color, arrow_width=1.5)
+                        if double:
+                            fig = add_vector(fig, (x[i * b_size] + x_size, y_cutoff + 0.1), (x[(i + 1) * b_size] + x_size*0.75, y_cutoff + 0.1), arrow_color=curve_color, arrow_width=1.5)
+                else:
+                    if (y[i * b_size] + y[(i+1) * b_size if (i+1) * b_size < len(x) else i * b_size])/2 > y_cutoff + 0.1 and (i % 2 == 0 if double else True):
+                        fig = add_vector(fig, (x[(i + 1) * b_size], y_cutoff + 0.1), (x[i * b_size], y_cutoff + 0.1), arrow_color=curve_color, arrow_width=1.5)            
+                        if double:
+                            fig = add_vector(fig, (x[(i + 1) * b_size] + x_size*0.75, y_cutoff + 0.1), (x[i * b_size] + x_size, y_cutoff + 0.1), arrow_color=curve_color, arrow_width=1.5)            
     else:
         for i in range(a):
             if y[i * b_size] - y_cutoff > c_size/2:
@@ -841,5 +842,49 @@ def add_hline_label(
     #     yanchor='bottom',
     #     font=dict(color=font_color, size=16)
     # )  
+
+    return fig
+
+def create_filled_line_figure(
+    x, 
+    y, 
+    title_text,
+    line_color='rgba(0,100,80,1)', 
+    fill_color='rgba(0,100,80,0.2)', 
+    name=None
+):
+    """
+    Create a Plotly line figure with the area between the curve and y=0 filled.
+
+    Parameters:
+      x          : List of x values.
+      y          : List of y values.
+      line_color : Color for the curve line.
+      fill_color : Color for the filled area under the curve.
+      name       : (Optional) Legend name for the trace.
+
+    Returns:
+      Plotly Figure.
+    """
+    # Initialize figure
+    fig = go.Figure()
+
+    # Add the line with fill to zero
+    fig.add_trace(go.Scatter(
+        x=x,
+        y=y,
+        mode='lines',
+        name=name,
+        line=dict(color=line_color),
+        fill='tozeroy',
+        fillcolor=fill_color
+    ))
+
+    # Optional: update axes titles
+    fig.update_layout(
+        title_text = title_text,
+        xaxis_title='x',
+        yaxis_title='y'
+    )
 
     return fig

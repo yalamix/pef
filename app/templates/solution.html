@@ -1,0 +1,39 @@
+<div id="resolution" hx-get="/solve" hx-trigger="renderCanvas from:body" hx-swap="outerHTML" class="mt-4 mb-4 m-4 max-h-[75vh] overflow-y-auto border border-dashed border-gray-300 rounded-lg items-center justify-center flex-shrink-0">              
+    {% for solution in result %}
+        <h1 class="text-xl text-center font-semibold text-gray-700 uppercase tracking-wider">{{ solution['name'] }}</h1>
+        <div>
+            <h2 class="p-1 rounded-full">Equação do Carregamento:</h2>
+            <p>$$ {{ solution['load_equation'] }} $$</p>
+        </div>
+        <div>
+            <h2 class="p-1 rounded-full">Equação Diferencial de Equilíbrio:</h2>
+            <p>$$ {{ solution['differential_equation'] }} $$</p>
+        </div> 
+        <div>
+            <h2 class="p-1 rounded-full">Integração:</h2>
+            {% for step in solution['integration_steps'] %}
+            <p>$$ {{ step }} $$</p>
+            {% endfor %}
+        </div>    
+        <div>
+            <h2 class="p-1 rounded-full">Determinação das Constantes de Integração:</h2>
+            {% for constant in solution['constants'] %}
+                {% for step in solution['constants'][constant]%}
+                <p>$$ {{ step }} $$</p>
+                {% endfor %}
+            {% endfor %}
+        </div>   
+        <div>
+            <h2 class="p-1 rounded-full">Equações Finais:</h2>
+            {% for equation in solution['final_equations'] %}
+            <p>$$ {{ equation }} $$</p>
+            {% endfor %}
+        </div>       
+        <div>
+            <h2 class="p-1 rounded-full">Diagramas:</h2>
+            {% for plot in solution['plots'] %}            
+                {{ solution['plots'][plot] | safe }}
+            {% endfor %}
+        </div>                  
+    {% endfor %}
+</div>    

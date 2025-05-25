@@ -51,6 +51,15 @@ async def render(request: Request, session_id: str = Cookie(None, alias="session
     BP = BeamProblem(json.dumps(session.problem[0].parameters))     
     return fig_to_rotated_img(BP.graph())
 
+@app.get("/solve", response_class=HTMLResponse)
+async def solve(request: Request, session_id: str = Cookie(None, alias="session_id"), db: Session = Depends(get_db)):
+    session = db.query(UserSession).where(UserSession.id == session_id).first()    
+    BP = BeamProblem(json.dumps(session.problem[0].parameters))     
+    result = BP.solve()
+    return templates.TemplateResponse(
+        request=request, name="solution.html", context={'result': result}
+    )
+
 @app.get("/get_variables", response_class=HTMLResponse)
 async def get_variables(request: Request, session_id: str = Cookie(None, alias="session_id"), db: Session = Depends(get_db)):
     session = db.query(UserSession).where(UserSession.id == session_id).first()  

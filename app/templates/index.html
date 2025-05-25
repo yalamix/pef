@@ -167,12 +167,11 @@
           <div id="canvas" hx-get="/render" hx-trigger="renderCanvas from:body" class="mt-4 mb-4 m-4 border border-dashed border-gray-300 rounded-lg h-full flex items-center justify-center">
             {{ fig | safe}}
           </div>
-          <div class="mt-4 mb-4 m-4 border border-dashed border-gray-300 rounded-lg items-center justify-center h-64 overflow-y-auto flex-shrink-0 flex-wrap">
+          <div class="mt-4 mb-4 m-4 border border-dashed border-gray-300 rounded-lg items-center justify-center h-full flex-wrap">
             <div class="mt-4 mb-4 m-4 border border-dashed border-gray-300 rounded-lg items-center justify-center flex-shrink-0">
               <img src="{{url_for('static' ,path='img/coord.png')}}" style="width: 512px;">
             </div>   
-            <div class="mt-4 mb-4 m-4 border border-dashed border-gray-300 rounded-lg items-center justify-center flex-shrink-0">
-              $$ \frac{x^{2}}{2} - x + 1 $$
+            <div id="resolution" hx-get="/solve" hx-trigger="load, renderCanvas from:body" hx-swap="outerHTML" class="mt-4 mb-4 m-4 overflow-y-auto border border-dashed border-gray-300 rounded-lg items-center justify-center flex-shrink-0">              
             </div>             
           </div>       
         </div>

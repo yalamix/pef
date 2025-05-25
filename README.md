@@ -10,10 +10,10 @@ Quando finalizá-lo, irei disponibilizá-lo na internet para qualquer um poder u
 - Adicionar forças e momentos.
 - Adicionar variáveis.
 - Visualização gráfica do problema.
+- Pontos de interesse.
 - Rotacionar o sistema de coordenadas (em construção).
-- Adicionar pontos de interesse (a fazer).
-- Detectar automaticamente as condições de contorno e restrições (a fazer).
-- Determinar as forças, momentos, deformação e deflexão e gerar seus respectivos gráficos (a fazer).
+- Detectar automaticamente as condições de contorno e restrições (em construção).
+- Determinar as forças, momentos, deformação e deflexão e gerar seus respectivos gráficos (em construção).
 - Dimensionamento de viga (a fazer).
 - Dimensionamento de seção circular (a fazer).
 - Exportar o problema em arquivo JSON (a fazer).
