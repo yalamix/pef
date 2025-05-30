@@ -3,6 +3,7 @@ from sympy.assumptions.ask import ask
 from sympy.assumptions import Q
 from sympy.functions.special.singularity_functions import SingularityFunction
 from sympy.printing.latex import LatexPrinter
+from typing import List, Union
 from PIL import Image
 import plotly.graph_objects as go
 import numpy as np
@@ -47,6 +48,34 @@ class ThresholdLatexPrinter(LatexPrinter):
             self._print(aa),  # a
             self._print(nn),  # n
         )
+
+Item = List[Union[str, float, int]]
+
+def add_item(collection: List[Item], new_item: Item) -> bool:
+    """
+    Add `new_item` to `collection` if there is no existing item in `collection`
+    whose first three elements match new_item's first three elements.
+    
+    Returns True if new_item was added, False otherwise.
+    """
+    # Compare only the first three elements
+    key_new = tuple(new_item[:3])
+    for item in collection:
+        if tuple(item[:3]) == key_new:
+            # Already present (regardless of last element), do not add
+            return False
+    collection.append(new_item)
+    return True
+
+def remove_zero_flags(collection: List[Item]) -> None:
+    """
+    Remove all items from `collection` whose last element is 0 (or False).
+    This mutates the list in place.
+    """
+    # Iterate backwards so removals don't shift upcoming indices
+    for idx in range(len(collection)-1, -1, -1):
+        if collection[idx][-1] == 0:
+            del collection[idx]
 
 def eval_all_singularities(expr_eq: Eq, sub_symbol, sub_value):
     """

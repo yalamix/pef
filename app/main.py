@@ -56,6 +56,8 @@ async def solve(request: Request, session_id: str = Cookie(None, alias="session_
     session = db.query(UserSession).where(UserSession.id == session_id).first()    
     BP = BeamProblem(json.dumps(session.problem[0].parameters))     
     result = BP.solve()
+    session.problem[0].parameters = BP.to_dict()
+    db.commit()    
     return templates.TemplateResponse(
         request=request, name="solution.html", context={'result': result, 'len': len}
     )
@@ -172,6 +174,7 @@ async def link(
     session = db.query(UserSession).where(UserSession.id == session_id).first()
     BP = BeamProblem(json.dumps(session.problem[0].parameters))
     result = BP.add_link(link_type, link_position)
+    BP.calculate_boundary_conditions()
     lt = {
         'cantilever': 'Engaste',
         'hinge': 'Rótula',
@@ -237,6 +240,7 @@ async def shear(
     session = db.query(UserSession).where(UserSession.id == session_id).first()
     BP = BeamProblem(json.dumps(session.problem[0].parameters))
     BP.add_shear_force(force_value, force_value_min, start.replace(',','.'), stop.replace(',','.'), n, pos)
+    BP.calculate_boundary_conditions()
     session.problem[0].parameters = BP.to_dict()
     db.commit()    
     context = {
@@ -262,6 +266,7 @@ async def normal(
     session = db.query(UserSession).where(UserSession.id == session_id).first()
     BP = BeamProblem(json.dumps(session.problem[0].parameters))
     BP.add_normal_force(force_value, force_value_min, start.replace(',','.'), stop.replace(',','.'), n, pos)
+    BP.calculate_boundary_conditions()
     session.problem[0].parameters = BP.to_dict()
     db.commit()    
     context = {
@@ -287,6 +292,7 @@ async def bending(
     session = db.query(UserSession).where(UserSession.id == session_id).first()
     BP = BeamProblem(json.dumps(session.problem[0].parameters))
     BP.add_bending_moment(force_value, force_value_min, start.replace(',','.'), stop.replace(',','.'), n, pos)
+    BP.calculate_boundary_conditions()
     session.problem[0].parameters = BP.to_dict()
     db.commit()    
     context = {
@@ -312,6 +318,7 @@ async def twisting(
     session = db.query(UserSession).where(UserSession.id == session_id).first()
     BP = BeamProblem(json.dumps(session.problem[0].parameters))
     BP.add_twisting_moment(force_value, force_value_min, start.replace(',','.'), stop.replace(',','.'), n, pos)
+    BP.calculate_boundary_conditions()
     session.problem[0].parameters = BP.to_dict()
     db.commit()    
     context = {

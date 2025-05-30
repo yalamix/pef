@@ -22,7 +22,8 @@ DEFAULT_BEAM = {
     "shear_forces": [],
     "normal_forces": [],
     "twisting_moments": [],
-    "bending_moments": []
+    "bending_moments": [],
+    "boundary_conditions": []
 }
 
 class BeamProblem:
@@ -37,14 +38,15 @@ class BeamProblem:
             The BeamProblem object.
         """           
         b = json.loads(definition)
-        self.beam_size = b['beam_size']
-        self.variables = b['variables']
-        self.points = b['points']
-        self.links = b['links']
-        self.shear_forces = b['shear_forces']
-        self.normal_forces = b['normal_forces']
-        self.twisting_moments = b['twisting_moments']
-        self.bending_moments = b['bending_moments']
+        self.beam_size: float = b['beam_size']
+        self.variables: dict = b['variables']
+        self.points: dict = b['points']
+        self.links: list = b['links']
+        self.shear_forces: list = b['shear_forces']
+        self.normal_forces: list = b['normal_forces']
+        self.twisting_moments: list = b['twisting_moments']
+        self.bending_moments: list = b['bending_moments']
+        self.boundary_conditions: list = b['boundary_conditions']
         self.protected_symbols = [
             'N_x',
             'M_x',
@@ -82,6 +84,7 @@ class BeamProblem:
         b['normal_forces'] = self.normal_forces
         b['twisting_moments'] = self.twisting_moments
         b['bending_moments'] = self.bending_moments
+        b['boundary_conditions'] = self.boundary_conditions
         return b
     
     def _update_variables(self, expr: str, default: float = 1) -> str:
@@ -553,15 +556,15 @@ class BeamProblem:
         Returns:
             b: The list of latex strings.
         """ 
-        bc, mp = self.calculate_boundary_conditions()
-        return [latex_with_threshold(eq) for eq in bc]
+        s, f = self._get_functions_and_symbols()
+        return [latex_with_threshold(Eq(f[eq[0]](self._s(eq[1])),self._s(eq[2]))) for eq in self.boundary_conditions]
 
     def _check_boundaries(self, left=True) -> bool:
         """
         """
         t = 0 if left else self.beam_size
         for load in self.normal_forces + self.shear_forces + self.bending_moments + self.twisting_moments:
-            if self._ev(load['start']) == t:
+            if self._ev(load['start']) == t and load['n'] < 0:
                 return True
         for link in self.links:
             if self._ev(link[list(link.keys())[0]]) == t:
@@ -571,7 +574,7 @@ class BeamProblem:
     def calculate_boundary_conditions(self):
         """
         """ 
-        conditions = []
+        remove_zero_flags(self.boundary_conditions)
         s, f = self._get_functions_and_symbols()
         mapped_points = {name: [] for name in [str(fun) for fun in f]}
 
@@ -581,85 +584,50 @@ class BeamProblem:
             'twisting': 2
         }
 
-        # Normal
-        for force in self.normal_forces:
+        def add_condition(func: str, pos: str, value: str) -> None:
+            """
+            Adds a boundary condition   
+
+            Parameters:
+                func        : String of the function symbol.
+                pos        : String of the position.
+
+            Returns:
+                out: None          
+            """
+            add_item(self.boundary_conditions, [func, pos, value, 0])
+            mapped_points[func].append(pos) if pos not in mapped_points[func] else None
+
+        def create_boundary_condition_from_force(force: dict, func: str) -> None:
             if force['r']:
                 degrees_of_freedom['normal'] += 1
             if force['n'] < 0:
                 if self._ev(force['start']) == 0:
-                    if force['pos']:
-                        conditions.append(Eq(f['N_x'](0),self._s(force['value'])))
-                        mapped_points['N_x'].append(0)
-                    else:
-                        conditions.append(Eq(f['N_x'](0),-self._s(force['value'])))
-                        mapped_points['N_x'].append(0)
+                    if force['pos'] and 0 not in mapped_points[func]:
+                        add_condition(func, 0, force['value'])
+                    elif 0 not in mapped_points[func]:
+                        add_condition(func, 0, f"-({force['value']})")
                 elif self._ev(force['start']) == self.beam_size:
-                    if force['pos']:
-                        conditions.append(Eq(f['N_x'](s['L']),self._s(force['value'])))
-                        mapped_points['N_x'].append('L')
-                    else:
-                        conditions.append(Eq(f['N_x'](s['L']),-self._s(force['value'])))
-                        mapped_points['N_x'].append('L')
+                    if force['pos'] and 'L' not in mapped_points[func]:
+                        add_condition(func, 'L', force['value'])
+                    elif 'L' not in mapped_points[func]:
+                        add_condition(func, 'L', f"-({force['value']})")
+
+        # Normal
+        for force in self.normal_forces:
+            create_boundary_condition_from_force(force, 'N_x')
 
         # Twisting
         for moment in self.twisting_moments:
-            if moment['r']:
-                degrees_of_freedom['twisting'] += 1            
-            if moment['n'] < 0:
-                if self._ev(moment['start']) == 0:
-                    if moment['pos']:
-                        conditions.append(Eq(f['M_x'](0),self._s(force['value'])))
-                        mapped_points['M_x'].append(0)
-                    else:
-                        conditions.append(Eq(f['M_x'](0),-self._s(force['value'])))
-                        mapped_points['M_x'].append(0)
-                elif self._ev(moment['start']) == self.beam_size:
-                    if moment['pos']:
-                        conditions.append(Eq(f['M_x'](s['L']),self._s(force['value'])))
-                        mapped_points['M_x'].append('L')
-                    else:
-                        conditions.append(Eq(f['M_x'](s['L']),-self._s(force['value'])))
-                        mapped_points['M_x'].append('L')  
+            create_boundary_condition_from_force(moment, 'M_x')
 
         # Shear
         for force in self.shear_forces:
-            if force['r']:
-                degrees_of_freedom['shear'] += 1            
-            if force['n'] < 0:
-                if self._ev(force['start']) == 0:
-                    if force['pos']:
-                        conditions.append(Eq(f['V_y'](0),self._s(force['value'])))
-                        mapped_points['V_y'].append(0)
-                    else:
-                        conditions.append(Eq(f['V_y'](0),-self._s(force['value'])))
-                        mapped_points['V_y'].append(0)
-                elif self._ev(force['start']) == self.beam_size:
-                    if force['pos']:
-                        conditions.append(Eq(f['V_y'](s['L']),self._s(force['value'])))
-                        mapped_points['V_y'].append('L')  
-                    else:
-                        conditions.append(Eq(f['V_y'](s['L']),-self._s(force['value'])))
-                        mapped_points['V_y'].append('L')   
+            create_boundary_condition_from_force(force, 'V_y')
 
         # Bending
         for moment in self.bending_moments:
-            if moment['r']:
-                degrees_of_freedom['shear'] += 1               
-            if moment['n'] < 0:
-                if self._ev(moment['start']) == 0:
-                    if moment['pos']:
-                        conditions.append(Eq(f['M_z'](0),self._s(moment['value'])))
-                        mapped_points['M_z'].append(0)
-                    else:
-                        conditions.append(Eq(f['M_z'](0),-self._s(moment['value'])))
-                        mapped_points['M_z'].append(0)
-                elif self._ev(moment['start']) == self.beam_size:
-                    if moment['pos']:
-                        conditions.append(Eq(f['M_z'](s['L']),self._s(moment['value'])))
-                        mapped_points['M_z'].append('L')
-                    else:
-                        conditions.append(Eq(f['M_z'](s['L']),-self._s(moment['value'])))
-                        mapped_points['M_z'].append('L')
+            create_boundary_condition_from_force(moment, 'V_y')
 
         # Links
         for link in self.links:
@@ -668,231 +636,239 @@ class BeamProblem:
             if link_type == 'cantilever':
                 if len(self.shear_forces) > 0 or len(self.bending_moments) > 0:
                     # Shear and bending
-                    conditions.append(Eq(f['V_y'](self._s(position)),0))
-                    mapped_points['V_y'].append(position)                
-                    conditions.append(Eq(f['M_z'](self._s(position)),0))
-                    mapped_points['M_z'].append(position)
-                    if len(mapped_points['M_z']) + len(mapped_points['V_y']) < degrees_of_freedom['shear']:
-                        conditions.append(Eq(f['theta_Z'](self._s(position)),0))
-                        mapped_points['theta_Z'].append(position)                  
-                        conditions.append(Eq(f['v'](self._s(position)),0))
-                        mapped_points['v'].append(position)      
+                    add_condition('theta_Z', position, 0)
+                    add_condition('v', position, 0)    
                 if len(self.normal_forces) > 0:
                     # Normal     
-                    if len(mapped_points['N_x']) + len(mapped_points['u']) < degrees_of_freedom['normal']:
-                        conditions.append(Eq(f['u'](self._s(position)),0))
-                        mapped_points['u'].append(position)  
+                    add_condition('u', position, 0)
                 if len(self.twisting_moments) > 0:
-                    # Twisting                            
-                    conditions.append(Eq(f['M_x'](self._s(position)),0))
-                    mapped_points['M_x'].append(position)
-                    if len(mapped_points['M_x']) + len(mapped_points['phi']) < degrees_of_freedom['twisting']:
-                        conditions.append(Eq(f['phi'](self._s(position)),0))
-                        mapped_points['phi'].append(position)                            
-            if link_type in ('fixed_support', 'mobile_support'):
+                    # Twisting                           
+                    add_condition('phi', position, 0)                        
+            if link_type == 'mobile_support':
                 if len(self.shear_forces) > 0 or len(self.bending_moments) > 0:
-                    conditions.append(Eq(f['v'](self._s(position)),0))
-                    mapped_points['v'].append(position)
+                    # Shear and bending
+                    add_condition('v', position, 0)
+            if link_type == 'fixed_support':
+                if len(self.shear_forces) > 0 or len(self.bending_moments) > 0:
+                    # Shear and bending
+                    add_condition('v', position, 0)
+                if len(self.normal_forces) > 0:
+                    # Normal 
+                    add_condition('u', position, 0)           
             if link_type == 'hinge':
                 if len(self.shear_forces) > 0 or len(self.bending_moments) > 0:
-                    conditions.append(Eq(f['M_z'](self._s(position)),0))
-                    mapped_points['M_z'].append(position)       
+                    add_condition('M_z', position, 0)   
             if link_type == 'roller':
                 if len(self.shear_forces) > 0 or len(self.bending_moments) > 0:
-                    conditions.append(Eq(f['V_y'](self._s(position)),0))
-                    mapped_points['V_y'].append(position)     
+                    add_condition('V_y', position, 0)
 
+        # Empty boundaries
         if len(mapped_points['M_z']) + len(mapped_points['V_y']) + len(mapped_points['theta_Z']) + len(mapped_points['v']) < degrees_of_freedom['shear']:
             if len(self.shear_forces) > 0 or len(self.bending_moments) > 0:
                 if 0 not in mapped_points['V_y'] and not self._check_boundaries():
-                    conditions.append(Eq(f['V_y'](0),0))
-                    mapped_points['V_y'].append(0)
+                    add_condition('V_y', 0, 0)
                 if 'L' not in mapped_points['V_y'] and not self._check_boundaries(False):
-                    conditions.append(Eq(f['V_y'](s['L']),0))
-                    mapped_points['V_y'].append('L')                
-                if 0 not in mapped_points['M_z'] and not self._check_boundaries():                
-                    conditions.append(Eq(f['M_z'](0),0))
-                    mapped_points['M_z'].append(0)
+                    add_condition('V_y', 'L', 0)           
+                if 0 not in mapped_points['M_z'] and not self._check_boundaries():
+                    add_condition('M_z', 0, 0)
                 if 'L' not in mapped_points['M_z'] and not self._check_boundaries(False):
-                    conditions.append(Eq(f['M_z'](s['L']),0))
-                    mapped_points['M_z'].append('L')              
+                    add_condition('M_z', 'L', 0)       
 
         if len(mapped_points['N_x']) + len(mapped_points['u']) < degrees_of_freedom['normal']:
             if len(self.normal_forces) > 0:
                 if 0 not in mapped_points['N_x'] and not self._check_boundaries():
-                    conditions.append(Eq(f['N_x'](0),0))
-                    mapped_points['N_x'].append(0)
+                    add_condition('N_x', 0, 0)
                 if 'L' not in mapped_points['N_x'] and not self._check_boundaries(False):
-                    conditions.append(Eq(f['N_x'](s['L']),0))
-                    mapped_points['N_x'].append('L')                  
-        
-        return conditions, mapped_points
+                    add_condition('N_x', 'L', 0)
+                       
+        if len(mapped_points['M_x']) + len(mapped_points['phi']) < degrees_of_freedom['twisting']:
+            if len(self.twisting_moments) > 0:
+                if 0 not in mapped_points['M_x'] and not self._check_boundaries():
+                    add_condition('M_x', 0, 0)
+                if 'L' not in mapped_points['M_x'] and not self._check_boundaries(False):
+                    add_condition('M_x', 'L', 0)                       
+
+        # remove extras
+        to_remove = []
+        for item in self.boundary_conditions:
+            if len(self.shear_forces) == 0 and len(self.bending_moments) == 0:
+                if ('V_y' in item or 'M_z' in item or 'theta_Z' in item or 'v' in item) and item[-1] == 0:
+                    mapped_points[item[0]] = []
+                    to_remove.append(item)                    
+            if len(self.normal_forces) == 0:
+                if ('N_x' in item or 'u' in item) and item[-1] == 0:
+                    mapped_points[item[0]] = []
+                    to_remove.append(item)                    
+            if len(self.twisting_moments) == 0:
+                if ('M_x' in item or 'phi' in item) and item[-1] == 0:
+                    mapped_points[item[0]] = []
+                    to_remove.append(item)                                
+        for item in to_remove:
+            self.boundary_conditions.remove(item)
+
+
+        return mapped_points
 
     def solve(self):
         """
         """
         s, f = self._get_functions_and_symbols()
-        bc, mp = self.calculate_boundary_conditions()
+        mp = self.calculate_boundary_conditions()
         x = symbols('x')
         vardict = self._get_symbol_value()
+        # force position symbols to be positive
+        positive_symbols = set()
+        for load in self.normal_forces + self.shear_forces + self.bending_moments + self.twisting_moments:
+            positive_symbols |= self._s(load['start']).free_symbols | self._s(load['stop']).free_symbols
+        for link in self.links:
+            positive_symbols |= self._s(link[list(link.keys())[0]]).free_symbols
+        for symb in positive_symbols:
+            sb = Symbol(str(symb), real=True, positive=True)
+            vardict[sb] = vardict.pop(self.symbols[str(symb)])
+        symdict = {str(sb): sb for sb in vardict}
         solution_blocks = []
+
+        def calculate_constant(cond: Item, constant_det: dict, constant_value: dict, p: Expr, k: Expr):
+            # sb = position of condition
+            if isinstance(cond[1], str):
+                sb = sympify(cond[1], locals=symdict)
+            else:
+                sb = cond[1]
+            # isolate the constant
+            sol = solve(Eq(sympify(cond[2], locals=symdict), p),k)[0]
+            constant_det[str(k)].append(latex_with_threshold(Eq(k, sol).subs(x, sb)))
+            # substitute known constants
+            for const in constant_value:
+                sol = sol.subs(const, constant_value[const])
+            # evaluate symbolically
+            if isinstance(sb, Expr):
+                sol = Eq(k, sol).subs(x, sb).subs(sb, vardict[sb]).evalf()
+            else:
+                sol = Eq(k, sol).subs(x, sb).evalf()
+            # replace symbols not in the position string with their numerical value
+            for v in vardict:
+                if str(v) != str(sb):
+                    sol = sol.subs(v, vardict[v], evaluate=False)
+            constant_det[str(k)].append(latex_with_threshold(sol))
+            constant_value[str(k)] = sol.rhs.evalf(subs=vardict)
+            # remove duplicates
+            constant_det[str(k)] = list(dict.fromkeys(constant_det[str(k)]))            
+
         # Normal
-        normal_block = {'name': 'Força Normal'}
-        reactions = []
-        p = sympify(0)
-        for force in self.normal_forces:
-            if (force['n'] < 0 and (0 < self._ev(force['start']) < self.beam_size)) or force['n'] >= 0:
-                p += self._get_load_equation(force)
-            if force['r']:
-                reactions.append(self._s(force['value']))
-        normal_block['load_equation'] = latex_with_threshold(Eq(f['p'](x), p))
-        c = []
-        if len(mp['N_x']) > 0:
-            if len(mp['u']) > 0:
-                normal_block['differential_equation'] = latex_with_threshold(Eq(Eq(s['A']*s['E'] * Derivative(f['u'](x),(x,2)), -f['p'](x)), -p, evaluate=False))
-                steps = []
-                final_eqs = []
-                plots = {}                
-                c.append(Symbol('c_1'))
-                p1 = integrate(-p, x) + c[0]
-                steps.append(latex_with_threshold(Eq(Eq(s['A']*s['E'] * Derivative(f['u'](x),(x,1)),f['N_x'](x)), p1,evaluate=False)))
-                final_eqs.append(Eq(f['N_x'](x), p1,evaluate=False))
-                c.append(Symbol('c_2'))
-                p2 = integrate(p1, x) + c[1]
-                steps.append(latex_with_threshold(Eq(s['A']*s['E'] * f['u'](x),p2,evaluate=False)))
-                final_eqs.append(Eq(s['A']*s['E'] * f['u'](x),p2,evaluate=False))
-                normal_block['integration_steps'] = steps
-                constant_det = {}
-                constant_value = {}
-                total_unknowns = len(c) + len(reactions)
-                for cond in bc:
-                    if cond.has(f['N_x']):
-                        k = c[0]
-                        p = p1
-                        if str(k) in constant_det:
+        if len(self.normal_forces) > 0:
+            normal_block = {'name': 'Força Normal'}
+            reactions = []
+            # create load equation
+            p = sympify(0)
+            for force in self.normal_forces:
+                if (force['n'] < 0 and (0 < self._ev(force['start']) < self.beam_size)) or force['n'] >= 0:
+                    p += self._get_load_equation(force)
+                if force['r']:
+                    reactions.append(self._s(force['value']))
+            normal_block['load_equation'] = latex_with_threshold(Eq(f['p'](x), p))
+
+            c = []
+            ps = []
+            if len(mp['N_x']) > 0:
+                if len(mp['u']) > 0 or len(mp['N_x']) > 1:
+                    normal_block['differential_equation'] = latex_with_threshold(Eq(Eq(s['A']*s['E'] * Derivative(f['u'](x),(x,2)), -f['p'](x)), -p, evaluate=False))
+                    steps = []
+                    final_eqs = []
+                    plots = {}                
+                    c.append(Symbol('c_1')) # first constant
+                    p1 = integrate(-p, x) + c[0] # first integration
+                    ps.append(p1)
+                    steps.append(latex_with_threshold(Eq(Eq(s['A']*s['E'] * Derivative(f['u'](x),(x,1)),f['N_x'](x)), p1,evaluate=False)))
+                    final_eqs.append(Eq(f['N_x'](x), p1, evaluate=False))
+                    c.append(Symbol('c_2')) # second constant 
+                    p2 = integrate(p1, x) + c[1] # second integration
+                    ps.append(p2)
+                    steps.append(latex_with_threshold(Eq(s['A']*s['E'] * f['u'](x),p2,evaluate=False)))
+                    final_eqs.append(Eq(s['A']*s['E'] * f['u'](x),p2,evaluate=False))
+                    normal_block['integration_steps'] = steps
+                    # find out constants
+                    constant_det = {}
+                    constant_value = {}
+                    total_unknowns = len(c) + len(reactions)
+                    constant_strings = [str(g) for g in c]
+                    reaction_strings = [str(g) for g in reactions]
+                    for cond in self.boundary_conditions:
+                        if cond[0] == 'N_x':
+                            k = c[0]
+                            p = ps[0]
+                            # check if constant has already been determined, else get next one
+                            for i, item in enumerate(constant_strings):
+                                if item in constant_det:
+                                    if i + 1 < len(constant_strings):
+                                        k = c[i]
+                            # if constants have been determined, find out reactions
+                            if constant_strings.index(str(k)) == len(constant_strings) - 1:
+                                for i, item in reaction_strings:
+                                    if item in constant_det:
+                                        if i + 1 < len(reaction_strings):
+                                            k = c[i]                                    
+                            constant_det[str(k)] = []
+                            # Nx(position) = value = first integration of -p(x)
+                            constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
+                            calculate_constant(cond, constant_det, constant_value, p, k)
+                            if len(constant_det.keys()) == total_unknowns:
+                                break
+                        if cond[0] == 'u':
                             k = c[1]
-                        constant_det[str(k)] = []
-                        constant_det[str(k)].append(latex_with_threshold(Eq(cond, p, evaluate=False)))
-                        if isinstance(cond.lhs.args[0], Symbol):
-                            sb = Dummy(str(cond.lhs.args[0]), real=True, positive=True)
-                            vardict[sb] = vardict[self.symbols[str(cond.lhs.args[0])]]
-                            cond.xreplace({cond.lhs.args[0]: sb})
-                        else:
-                            sb = float(cond.lhs.args[0])
-                        sol = solve(Eq(cond.rhs, p),k)[0]
-                        constant_det[str(k)].append(latex_with_threshold(Eq(k, sol).subs(x, sb)))
-                        for const in constant_value:
-                            sol = sol.subs(const, constant_value[const])
-                        if isinstance(sb, Symbol):
-                            sol = Eq(k, sol).subs(x, sb).subs(sb, vardict[sb]).evalf()
-                        else:
-                            sol = Eq(k, sol).subs(x, sb).evalf()
-                        for v in vardict:
-                            if str(v) != str(sb):
-                                sol = sol.subs(v, vardict[v], evaluate=False)
-                        print(sol)
-                        constant_det[str(k)].append(latex_with_threshold(sol))
-                        if latex_with_threshold(sol.evalf(subs=vardict)) != latex_with_threshold(sol):                            
-                            constant_det[str(k)].append(latex_with_threshold(sol.evalf(subs=vardict)))
-                        constant_value[str(k)] = sol.rhs.evalf(subs=vardict)
-                        # remove duplicates
-                        constant_det[str(k)] = list(dict.fromkeys(constant_det[str(k)]))
-                        if len(constant_det.keys()) == total_unknowns:
-                            break
-                    if cond.has(f['u']):
-                        k = c[1]
-                        p = (1/(s['A']*s['E'])) * p2
-                        constant_det[str(k)] = []
-                        constant_det[str(k)].append(latex_with_threshold(Eq(cond, p, evaluate=False)))
-                        if isinstance(cond.lhs.args[0], Symbol):
-                            sb = Dummy(str(cond.lhs.args[0]), real=True, positive=True)
-                            vardict[sb] = vardict[self.symbols[str(cond.lhs.args[0])]]
-                            cond.xreplace({cond.lhs.args[0]: sb})
-                        else:
-                            sb = float(cond.lhs.args[0])
-                        sol = solve(Eq(cond.rhs, p),k)[0]
-                        constant_det[str(k)].append(latex_with_threshold(Eq(k, sol).subs(x, sb)))
-                        for const in constant_value:
-                            sol = sol.subs(const, constant_value[const])
-                        if isinstance(sb, Symbol):
-                            sol = Eq(k, sol).subs(x, sb).subs(sb, vardict[sb]).evalf()
-                        else:
-                            sol = Eq(k, sol).subs(x, sb).evalf()
-                        for v in vardict:
-                            if str(v) != str(sb):
-                                sol = sol.subs(v, vardict[v], evaluate=False)                         
-                        constant_det[str(k)].append(latex_with_threshold(sol))
-                        if latex_with_threshold(sol.evalf(subs=vardict)) != latex_with_threshold(sol):
-                            constant_det[str(k)].append(latex_with_threshold(sol.evalf(subs=vardict)))                
-                        constant_value[str(k)] = sol.rhs.evalf(subs=vardict)
-                        # remove duplicates
-                        constant_det[str(k)] = list(dict.fromkeys(constant_det[str(k)]))
-                        if len(constant_det.keys()) == total_unknowns:
-                            break                        
-                normal_block['constants'] = constant_det
-                try:
+                            p = (1/(s['A']*s['E'])) * ps[1]
+                            # check if constant has already been determined, else get next one
+                            for i, item in enumerate(constant_strings):
+                                if item in constant_det:
+                                    if i + 1 < len(constant_strings) and i > 0:
+                                        k = c[i]
+                            # if constants have been determined, find out reactions
+                            if constant_strings.index(str(k)) == len(constant_strings) - 1:
+                                for i, item in reaction_strings:
+                                    if item in constant_det:
+                                        if i + 1 < len(reaction_strings):
+                                            k = c[i]                              
+                            constant_det[str(k)] = []
+                            # u(position) = value = second integration of -p(x)
+                            constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
+                            calculate_constant(cond, constant_det, constant_value, p, k)
+                            if len(constant_det.keys()) == total_unknowns:
+                                break       
+                    # finalize constants
+                    for k in constant_strings:
+                        try: 
+                            float(constant_value[str(k)])
+                        except:
+                            final_constant_expression = latex_with_threshold(Eq(c[constant_strings.index(str(k))],constant_value[k]))
+                            if final_constant_expression not in constant_det[k]:
+                                constant_det[k].append(final_constant_expression)
+                    for k in reaction_strings:
+                        try: 
+                            float(constant_value[str(k)])
+                        except:                    
+                            final_constant_expression = latex_with_threshold(Eq(reactions[reaction_strings.index(str(k))],constant_value[k]))
+                            if final_constant_expression not in constant_det[k]:
+                                constant_det[k].append(final_constant_expression)
+                    normal_block['constants'] = constant_det
+                    # plots
                     for i in range(len(final_eqs)):
                         x_axis = np.linspace(0, self.variables['L'],1000)
-                        eq = final_eqs[i].subs(c[0],constant_value[str(c[0])]).subs(c[1],constant_value[str(c[1])]).evalf(subs=self._remove_protected_symbols(vardict))
+                        eq = final_eqs[i].subs(c[0],constant_value[str(c[0])]).subs(c[1],constant_value[str(c[1])])
+                        for r in reactions:
+                            eq = eq.subs(r,constant_value[str(r)])
+                        eq = eq.evalf(subs=self._remove_protected_symbols(vardict))
                         f = lambdify(x, eq.rhs, modules=[mapping, 'numpy'])
-                        plots[format_label(str(eq.lhs))] = fig_to_rotated_img(create_filled_line_figure(
+                        y_axis = f(x_axis)
+                        if isinstance(y_axis, float):
+                            y_axis = np.zeros(len(x_axis)) + y_axis
+                        title = format_label(str(eq.lhs).replace('*',''))
+                        plots[title] = fig_to_rotated_img(create_filled_line_figure(
                             x_axis,
-                            f(x_axis),
-                            format_label(str(eq.lhs))
+                            y_axis,
+                            title
                         ))
                         final_eqs[i] = latex_with_threshold(eq)
                     normal_block['final_equations'] = final_eqs
-                    normal_block['plots'] = plots
-                except:
-                    pass
-
-            else:
-                normal_block['differential_equation'] = latex_with_threshold(Eq(Eq(Derivative(f['N_x'](x)), -f['p'](x)), -p, evaluate=False))
-                steps = []
-                final_eqs = []
-                plots = {}
-                c.append(Symbol('c'))
-                p = integrate(-p, x) + c[0]
-                steps.append(latex_with_threshold(Eq(f['N_x'](x), p, evaluate=False)))
-                final_eqs.append(Eq(f['N_x'](x), p, evaluate=False))
-                normal_block['integration_steps'] = steps
-                constant_det = {}
-                constant_value = {}
-                total_unknowns = len(c) + len(reactions)
-                for cond in bc:
-                    if cond.has(f['N_x']):
-                        constant_det[str(c[0])] = []
-                        constant_det[str(c[0])].append(latex_with_threshold(Eq(cond, p, evaluate=False)))
-                        if isinstance(cond.lhs.args[0], Symbol):
-                            sb = Dummy(str(cond.lhs.args[0]), real=True, positive=True)
-                            vardict[sb] = vardict[self.symbols[str(cond.lhs.args[0])]]
-                            cond.xreplace({cond.lhs.args[0]: sb})
-                        else:
-                            sb = float(cond.lhs.args[0])
-                        try:
-                            sol = simplify(eval_all_singularities(Eq(c[0], solve(Eq(cond.rhs, p),c[0])[0]), x, sb))
-                        except:
-                            sol = simplify(Eq(c[0], solve(Eq(cond.rhs, p),c[0])[0].subs(x, sb)))
-                        constant_det[str(c[0])].append(latex_with_threshold(sol))
-                        constant_det[str(c[0])].append(latex_with_threshold(sol.evalf(subs=vardict)))
-                        constant_value[str(c[0])] = sol.rhs.evalf(subs=vardict)
-                        if len(constant_det.keys()) == total_unknowns:
-                            break
-                normal_block['constants'] = constant_det
-                for i in range(len(final_eqs)):
-                    x_axis = np.linspace(0, self.variables['L'],1000)
-                    eq = final_eqs[i].subs(c[0],constant_value[str(c[0])]).evalf(subs=vardict)
-                    f = lambdify(x, eq.rhs, modules=[mapping, 'numpy'])
-                    plots[format_label(str(eq.lhs))] = fig_to_rotated_img(create_filled_line_figure(
-                        x_axis,
-                        f(x_axis),
-                        format_label(str(eq.lhs))
-                    ))
-                    final_eqs[i] = latex_with_threshold(eq)
-                normal_block['final_equations'] = final_eqs
-                normal_block['plots'] = plots
-        
-        if 'differential_equation' in normal_block:
+                    normal_block['plots'] = plots                             
             solution_blocks.append(normal_block)
 
         return solution_blocks
@@ -917,6 +893,11 @@ class BeamProblem:
             self.fig = add_label(self.fig, self._ev(self.points[point]), -2 * HEIGHT, point, font_size = 16 if total_points < 6 else 12)
             if ord(point) > ord('A') and total_points > 2:
                 dist = str(simplify(self._s(f'({self.points[point]}) - ({self.points[chr(ord(point) - 1)]})'))).replace('*','')
+                try:
+                    dist = float(dist)
+                    dist = f'{dist:1.2f}'
+                except:
+                    pass
                 self.fig = add_hline_label(self.fig, -2 * HEIGHT, self._ev(self.points[chr(ord(point) - 1)]) + HEIGHT/8, self._ev(self.points[point]) - HEIGHT/8, format_label(dist))
 
         # Add the links
