@@ -10,9 +10,7 @@ BEAM_COLOR = 'blue'
 DEFAULT_BEAM = {
     "beam_size": 5,
     "variables": {
-        "L": 5,
-        "A": 1,
-        "E": 200 * 1e9
+        "L": 5
     },
     "points": {
         "A": 0,
@@ -55,6 +53,7 @@ class BeamProblem:
             'u',
             'q',
             'p',
+            't',
             'v',
             'phi',
             'theta_Z',
@@ -146,6 +145,7 @@ class BeamProblem:
                 'u',
                 'q',
                 'p',
+                't',
                 'v',
                 'phi',
                 'theta_Z'
@@ -323,9 +323,9 @@ class BeamProblem:
             # creates point of interest
             if link_type in ('fixed_support', 'mobile_support') and (0 < self._ev(position) < self.beam_size):
                 link_point = self._get_and_add_point(position)
-                self.add_shear_force(f'R_y_{link_point}', position, position, -1, True, True)
+                self.add_shear_force(f'R_y_{link_point}', 0, position, position, -1, True, True)
                 self._enforce_reaction_consistency()
-            else:
+            elif (0 < self._ev(position) < self.beam_size):
                 link_point = self._get_and_add_point(position)
                 self._enforce_reaction_consistency()
             self.links.append({link_type: position})
@@ -411,6 +411,9 @@ class BeamProblem:
             n         : Exponent of the polynomial representing the force.
             pos         : True if the force is positive, False otherwise.
         """ 
+        if 'I_zz' not in self.variables or 'E' not in self.variables:
+            self.add_variable('I_zz',1)
+            self.add_variable('E',200 * 1e9)        
         self.shear_forces.append(self._create_load(value, value_min, start, stop, n, pos, reaction))  
 
     def add_normal_force(self, value: str, value_min: str, start: str, stop: str, n: int, pos: bool = True, reaction: bool = False):
@@ -424,6 +427,9 @@ class BeamProblem:
             n         : Exponent of the polynomial representing the force.
             pos         : True if the force is positive, False otherwise.
         """       
+        if 'A' not in self.variables or 'E' not in self.variables:
+            self.add_variable('A',1)
+            self.add_variable('E',200 * 1e9)        
         self.normal_forces.append(self._create_load(value, value_min, start, stop, n, pos, reaction))  
 
     def add_twisting_moment(self, value: str, value_min: str, start: str, stop: str, n: int, pos: bool = True, reaction: bool = False):
@@ -437,6 +443,9 @@ class BeamProblem:
             n         : Exponent of the polynomial representing the moment.
             pos         : True if the moment is positive, False otherwise.
         """        
+        if 'J_p' not in self.variables or 'G' not in self.variables:
+            self.add_variable('J_p',1)
+            self.add_variable('G', 76 * 1e9)        
         self.twisting_moments.append(self._create_load(value, value_min, start, stop, n, pos, reaction))  
 
     def add_bending_moment(self, value: str, value_min: str, start: str, stop: str, n: int, pos: bool = True, reaction: bool = False):
@@ -449,7 +458,10 @@ class BeamProblem:
             stop         : End position of the domain of the moment.
             n         : Exponent of the polynomial representing the moment.
             pos         : True if the moment is positive, False otherwise.
-        """        
+        """   
+        if 'I_zz' not in self.variables or 'E' not in self.variables:
+            self.add_variable('I_zz',1)
+            self.add_variable('E',200 * 1e9)                
         self.bending_moments.append(self._create_load(value, value_min, start, stop, n, pos, reaction))
     
     def _get_load_equation(self, force: dict):
@@ -472,15 +484,15 @@ class BeamProblem:
             if force['n'] <= 0:
                 eq = p * SingularityFunction(x, self._s(force['start']), force['n']) - p * SingularityFunction(x, self._s(force['stop']), force['n'])
             else:
-                if self._ev(force['start']) == 0:
+                if self._ev(force['start']) == 0 and q == 0:
                     eq = r * SingularityFunction(x, self._s(force['start']), force['n']) - r * SingularityFunction(x, self._s(force['stop']), force['n'])
                 else:
-                    eq = q * SingularityFunction(x, self._s(force['start']), 0) + r * SingularityFunction(x, self._s(force['start']), force['n']) - r * SingularityFunction(x, self._s(force['stop']), force['n'])
+                    eq = q * SingularityFunction(x, self._s(force['start']), 0) + r * SingularityFunction(x, self._s(force['start']), force['n']) - (q * SingularityFunction(x, self._s(force['stop']), 0) + r * SingularityFunction(x, self._s(force['stop']), force['n']))
         else:
             if force['n'] <= 0:
                 eq = p * SingularityFunction(x, self._s(force['start']), force['n'])
             else:
-                if self._ev(force['start']) == 0:
+                if self._ev(force['start']) == 0 and q == 0:
                     eq = r * SingularityFunction(x, self._s(force['start']), force['n'])
                 else:
                     eq = q * SingularityFunction(x, self._s(force['start']), 0) + r * SingularityFunction(x, self._s(force['start']), force['n'])
@@ -688,24 +700,7 @@ class BeamProblem:
                 if 'L' not in mapped_points['M_x'] and not self._check_boundaries(False):
                     add_condition('M_x', 'L', 0)                       
 
-        # remove extras
-        to_remove = []
-        for item in self.boundary_conditions:
-            if len(self.shear_forces) == 0 and len(self.bending_moments) == 0:
-                if ('V_y' in item or 'M_z' in item or 'theta_Z' in item or 'v' in item) and item[-1] == 0:
-                    mapped_points[item[0]] = []
-                    to_remove.append(item)                    
-            if len(self.normal_forces) == 0:
-                if ('N_x' in item or 'u' in item) and item[-1] == 0:
-                    mapped_points[item[0]] = []
-                    to_remove.append(item)                    
-            if len(self.twisting_moments) == 0:
-                if ('M_x' in item or 'phi' in item) and item[-1] == 0:
-                    mapped_points[item[0]] = []
-                    to_remove.append(item)                                
-        for item in to_remove:
-            self.boundary_conditions.remove(item)
-
+        self.boundary_conditions.sort(key=lambda item: item[1] != 0)
 
         return mapped_points
 
@@ -716,6 +711,7 @@ class BeamProblem:
         mp = self.calculate_boundary_conditions()
         x = symbols('x')
         vardict = self._get_symbol_value()
+        relations = []
         # force position symbols to be positive
         positive_symbols = set()
         for load in self.normal_forces + self.shear_forces + self.bending_moments + self.twisting_moments:
@@ -725,10 +721,16 @@ class BeamProblem:
         for symb in positive_symbols:
             sb = Symbol(str(symb), real=True, positive=True)
             vardict[sb] = vardict.pop(self.symbols[str(symb)])
+        for item in vardict:
+            if str(item) in self.variables:
+                for other in vardict:
+                    if str(other) in self.variables:
+                        if self.variables[str(item)] > self.variables[str(other)]:
+                            relations.append(Gt(item, other))
         symdict = {str(sb): sb for sb in vardict}
         solution_blocks = []
 
-        def calculate_constant(cond: Item, constant_det: dict, constant_value: dict, p: Expr, k: Expr):
+        def calculate_constant(cond: Item, constant_det: dict, constant_value: dict, p: Expr, k: Expr, constant_lit: dict):
             # sb = position of condition
             if isinstance(cond[1], str):
                 sb = sympify(cond[1], locals=symdict)
@@ -736,7 +738,8 @@ class BeamProblem:
                 sb = cond[1]
             # isolate the constant
             sol = solve(Eq(sympify(cond[2], locals=symdict), p),k)[0]
-            constant_det[str(k)].append(latex_with_threshold(Eq(k, sol).subs(x, sb)))
+            constant_det[str(k)].append(latex_with_threshold(collapse_singularity_functions(Eq(k, sol).subs(x, sb), x, relations)))
+            constant_lit[str(k)] = Eq(k, sol).subs(x, sb).rhs
             # substitute known constants
             for const in constant_value:
                 sol = sol.subs(const, constant_value[const])
@@ -752,7 +755,51 @@ class BeamProblem:
             constant_det[str(k)].append(latex_with_threshold(sol))
             constant_value[str(k)] = sol.rhs.evalf(subs=vardict)
             # remove duplicates
-            constant_det[str(k)] = list(dict.fromkeys(constant_det[str(k)]))            
+            constant_det[str(k)] = list(dict.fromkeys(constant_det[str(k)])) 
+
+        def finalize_constants(constant_strings: list, reaction_strings: list, reactions: list, constant_value: dict, constant_det: dict):
+            for k in constant_strings:
+                if k in constant_value:
+                    try: 
+                        float(constant_value[str(k)])
+                    except:
+                        final_constant_expression = latex_with_threshold(Eq(c[constant_strings.index(str(k))],constant_value[k]))
+                        if final_constant_expression not in constant_det[k]:
+                            constant_det[k].append(final_constant_expression)
+            for k in reaction_strings:
+                if k in constant_value:
+                    try: 
+                        float(constant_value[str(k)])
+                    except:                    
+                        final_constant_expression = latex_with_threshold(Eq(reactions[reaction_strings.index(str(k))],constant_value[k]))
+                        if final_constant_expression not in constant_det[k]:
+                            constant_det[k].append(final_constant_expression)            
+
+        def plot_equations(plots: dict, final_eqs: list, constants: list, constant_value: dict, constant_lit: dict):
+            for i in range(len(final_eqs)):
+                x_axis = np.linspace(0, self.variables['L'],1000)
+                eq = final_eqs[i]
+                eqlit = copy(final_eqs[i])
+                for k in constants:
+                    eq = eq.subs(k,constant_value[str(k)])
+                    eqlit = eqlit.subs(k, constant_lit[str(k)])
+                for r in reactions:
+                    eq = eq.subs(r,constant_value[str(r)])
+                    eqlit = eqlit.subs(k, constant_lit[str(r)])
+                eqlit = collapse_singularity_functions(eqlit, x, relations)
+                eq = eq.evalf(subs=self._remove_protected_symbols(vardict))
+                f = lambdify(x, eq.rhs, modules=[mapping, 'numpy'])
+                y_axis = f(x_axis)
+                if isinstance(y_axis, float):
+                    y_axis = np.zeros(len(x_axis)) + y_axis
+                title = format_label(str(eq.lhs)).replace('*','')
+                plots[title] = fig_to_rotated_img(create_filled_line_figure(
+                    x_axis,
+                    y_axis,
+                    title
+                ))
+                final_eqs[i] = latex_with_threshold(eqlit)
+                final_eqs.append(latex_with_threshold(eq))
 
         # Normal
         if len(self.normal_forces) > 0:
@@ -764,112 +811,273 @@ class BeamProblem:
                 if (force['n'] < 0 and (0 < self._ev(force['start']) < self.beam_size)) or force['n'] >= 0:
                     p += self._get_load_equation(force)
                 if force['r']:
-                    reactions.append(self._s(force['value']))
+                    reactions.append(unify_symbols(self._s(force['value']), symdict))
+            p = unify_symbols(p, symdict)
             normal_block['load_equation'] = latex_with_threshold(Eq(f['p'](x), p))
 
             c = []
-            ps = []
-            if len(mp['N_x']) > 0:
-                if len(mp['u']) > 0 or len(mp['N_x']) > 1:
-                    normal_block['differential_equation'] = latex_with_threshold(Eq(Eq(s['A']*s['E'] * Derivative(f['u'](x),(x,2)), -f['p'](x)), -p, evaluate=False))
-                    steps = []
-                    final_eqs = []
-                    plots = {}                
-                    c.append(Symbol('c_1')) # first constant
-                    p1 = integrate(-p, x) + c[0] # first integration
-                    ps.append(p1)
-                    steps.append(latex_with_threshold(Eq(Eq(s['A']*s['E'] * Derivative(f['u'](x),(x,1)),f['N_x'](x)), p1,evaluate=False)))
-                    final_eqs.append(Eq(f['N_x'](x), p1, evaluate=False))
-                    c.append(Symbol('c_2')) # second constant 
-                    p2 = integrate(p1, x) + c[1] # second integration
-                    ps.append(p2)
-                    steps.append(latex_with_threshold(Eq(s['A']*s['E'] * f['u'](x),p2,evaluate=False)))
-                    final_eqs.append(Eq(s['A']*s['E'] * f['u'](x),p2,evaluate=False))
-                    normal_block['integration_steps'] = steps
-                    # find out constants
-                    constant_det = {}
-                    constant_value = {}
-                    total_unknowns = len(c) + len(reactions)
-                    constant_strings = [str(g) for g in c]
-                    reaction_strings = [str(g) for g in reactions]
-                    for cond in self.boundary_conditions:
-                        if cond[0] == 'N_x':
-                            k = c[0]
-                            p = ps[0]
-                            # check if constant has already been determined, else get next one
+            ps = []            
+            if len(mp['u']) > 0:
+                normal_block['differential_equation'] = latex_with_threshold(Eq(Eq(s['A']*s['E'] * Derivative(f['u'](x),(x,2)), -f['p'](x)), -p, evaluate=False))
+                steps = []
+                final_eqs = []
+                plots = {}                
+                c.append(Symbol('c_1')) # first constant
+                p1 = integrate(-p, x) + c[0] # first integration
+                ps.append(p1)
+                steps.append(latex_with_threshold(Eq(Eq(s['A']*s['E'] * Derivative(f['u'](x),(x,1)),f['N_x'](x)), p1,evaluate=False)))
+                final_eqs.append(Eq(f['N_x'](x), p1, evaluate=False))
+                c.append(Symbol('c_2')) # second constant 
+                p2 = integrate(p1, x) + c[1] # second integration
+                ps.append(p2)
+                steps.append(latex_with_threshold(Eq(s['A']*s['E'] * f['u'](x),p2,evaluate=False)))
+                final_eqs.append(Eq(s['A']*s['E'] * f['u'](x),p2,evaluate=False))
+                normal_block['integration_steps'] = steps
+                # find out constants
+                constant_det = {}
+                constant_value = {}
+                constant_lit = {}
+                total_unknowns = len(c) + len(reactions)
+                constant_strings = [str(g) for g in c]
+                reaction_strings = [str(g) for g in reactions]
+                for cond in self.boundary_conditions:
+                    if cond[0] == 'N_x':
+                        k = c[0]
+                        p = ps[0]
+                        # check if constant has already been determined, else get next one
+                        if str(k) in constant_det:
                             for i, item in enumerate(constant_strings):
+                                if item not in constant_det and item != str(k):                                
+                                    k = c[i]
+                                    break
+                        # if constants have been determined, find out reactions
+                        if constant_strings.index(str(k)) == len(constant_strings) - 1:
+                            for i, item in reaction_strings:
                                 if item in constant_det:
-                                    if i + 1 < len(constant_strings):
-                                        k = c[i]
-                            # if constants have been determined, find out reactions
-                            if constant_strings.index(str(k)) == len(constant_strings) - 1:
-                                for i, item in reaction_strings:
-                                    if item in constant_det:
-                                        if i + 1 < len(reaction_strings):
-                                            k = c[i]                                    
-                            constant_det[str(k)] = []
-                            # Nx(position) = value = first integration of -p(x)
-                            constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
-                            calculate_constant(cond, constant_det, constant_value, p, k)
-                            if len(constant_det.keys()) == total_unknowns:
-                                break
-                        if cond[0] == 'u':
-                            k = c[1]
-                            p = (1/(s['A']*s['E'])) * ps[1]
-                            # check if constant has already been determined, else get next one
+                                    if i + 1 < len(reaction_strings):
+                                        k = c[i]                                    
+                        constant_det[str(k)] = []
+                        # Nx(position) = value = first integration of -p(x)
+                        constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
+                        calculate_constant(cond, constant_det, constant_value, p, k, constant_lit)
+                        if len(constant_det.keys()) == total_unknowns:
+                            break
+                    if cond[0] == 'u':
+                        k = c[1]
+                        p = (1/(s['A']*s['E'])) * ps[1]
+                        # check if constant has already been determined, else get next one
+                        if str(k) in constant_det:
                             for i, item in enumerate(constant_strings):
+                                if item not in constant_det and item != str(k):                                
+                                    k = c[i]
+                                    break
+                        # if constants have been determined, find out reactions
+                        if constant_strings.index(str(k)) == len(constant_strings) - 1:
+                            for i, item in reaction_strings:
                                 if item in constant_det:
-                                    if i + 1 < len(constant_strings) and i > 0:
-                                        k = c[i]
-                            # if constants have been determined, find out reactions
-                            if constant_strings.index(str(k)) == len(constant_strings) - 1:
-                                for i, item in reaction_strings:
-                                    if item in constant_det:
-                                        if i + 1 < len(reaction_strings):
-                                            k = c[i]                              
-                            constant_det[str(k)] = []
-                            # u(position) = value = second integration of -p(x)
-                            constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
-                            calculate_constant(cond, constant_det, constant_value, p, k)
-                            if len(constant_det.keys()) == total_unknowns:
-                                break       
-                    # finalize constants
-                    for k in constant_strings:
-                        try: 
-                            float(constant_value[str(k)])
-                        except:
-                            final_constant_expression = latex_with_threshold(Eq(c[constant_strings.index(str(k))],constant_value[k]))
-                            if final_constant_expression not in constant_det[k]:
-                                constant_det[k].append(final_constant_expression)
-                    for k in reaction_strings:
-                        try: 
-                            float(constant_value[str(k)])
-                        except:                    
-                            final_constant_expression = latex_with_threshold(Eq(reactions[reaction_strings.index(str(k))],constant_value[k]))
-                            if final_constant_expression not in constant_det[k]:
-                                constant_det[k].append(final_constant_expression)
-                    normal_block['constants'] = constant_det
-                    # plots
-                    for i in range(len(final_eqs)):
-                        x_axis = np.linspace(0, self.variables['L'],1000)
-                        eq = final_eqs[i].subs(c[0],constant_value[str(c[0])]).subs(c[1],constant_value[str(c[1])])
-                        for r in reactions:
-                            eq = eq.subs(r,constant_value[str(r)])
-                        eq = eq.evalf(subs=self._remove_protected_symbols(vardict))
-                        f = lambdify(x, eq.rhs, modules=[mapping, 'numpy'])
-                        y_axis = f(x_axis)
-                        if isinstance(y_axis, float):
-                            y_axis = np.zeros(len(x_axis)) + y_axis
-                        title = format_label(str(eq.lhs).replace('*',''))
-                        plots[title] = fig_to_rotated_img(create_filled_line_figure(
-                            x_axis,
-                            y_axis,
-                            title
-                        ))
-                        final_eqs[i] = latex_with_threshold(eq)
-                    normal_block['final_equations'] = final_eqs
-                    normal_block['plots'] = plots                             
+                                    if i + 1 < len(reaction_strings):
+                                        k = c[i]                         
+                        constant_det[str(k)] = []
+                        # u(position) = value = second integration of -p(x)
+                        constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
+                        calculate_constant(cond, constant_det, constant_value, p, k, constant_lit)
+                        if len(constant_det.keys()) == total_unknowns:
+                            break       
+                # finalize constants
+                finalize_constants(constant_strings, reaction_strings, reactions, constant_value, constant_det)
+                normal_block['constants'] = constant_det
+                # plots
+                plot_equations(plots, final_eqs, c, constant_value, constant_lit)
+                normal_block['final_equations'] = final_eqs
+                normal_block['plots'] = plots
+            elif len(mp['N_x']) > 0:
+                normal_block['differential_equation'] = latex_with_threshold(Eq(Eq(Derivative(f['N_x'](x),(x,1)), -f['p'](x)), -p, evaluate=False))
+                steps = []
+                final_eqs = []
+                plots = {}                
+                c.append(Symbol('c_1')) # first constant
+                p1 = integrate(-p, x) + c[0] # first integration
+                ps.append(p1)
+                steps.append(latex_with_threshold(Eq(f['N_x'](x), p1,evaluate=False)))
+                final_eqs.append(Eq(f['N_x'](x), p1, evaluate=False))
+                normal_block['integration_steps'] = steps
+                # find out constants
+                constant_det = {}
+                constant_value = {}
+                constant_lit = {}
+                total_unknowns = len(c) + len(reactions)
+                constant_strings = [str(g) for g in c]
+                reaction_strings = [str(g) for g in reactions]
+                for cond in self.boundary_conditions:
+                    if cond[0] == 'N_x':
+                        k = c[0]
+                        p = ps[0]
+                        # check if constant has already been determined, else get next one
+                        if str(k) in constant_det:
+                            for i, item in enumerate(constant_strings):
+                                if item not in constant_det and item != str(k):                                
+                                    k = c[i]
+                                    break
+                        # if constants have been determined, find out reactions
+                        if constant_strings.index(str(k)) == len(constant_strings) - 1:
+                            for i, item in reaction_strings:
+                                if item in constant_det:
+                                    if i + 1 < len(reaction_strings):
+                                        k = c[i]                                    
+                        constant_det[str(k)] = []
+                        # Nx(position) = value = first integration of -p(x)
+                        constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
+                        calculate_constant(cond, constant_det, constant_value, p, k, constant_lit)
+                        if len(constant_det.keys()) == total_unknowns:
+                            break
+                # finalize constants
+                finalize_constants(constant_strings, reaction_strings, reactions, constant_value, constant_det)
+                normal_block['constants'] = constant_det
+                # plots
+                plot_equations(plots, final_eqs, c, constant_value, constant_lit)
+                normal_block['final_equations'] = final_eqs
+                normal_block['plots'] = plots                                           
+
             solution_blocks.append(normal_block)
+
+        # Twisting
+        if len(self.twisting_moments) > 0:
+            twisting_block = {'name': 'Momento Torsor'}
+            reactions = []
+            # create load equation
+            p = sympify(0)
+            for force in self.twisting_moments:
+                if (force['n'] < 0 and (0 < self._ev(force['start']) < self.beam_size)) or force['n'] >= 0:
+                    p += self._get_load_equation(force)
+                if force['r']:
+                    reactions.append(unify_symbols(self._s(force['value']), symdict))
+            p = unify_symbols(p, symdict)
+            twisting_block['load_equation'] = latex_with_threshold(Eq(f['t'](x), p))
+
+            c = []
+            ps = []            
+            if len(mp['phi']) > 0:
+                twisting_block['differential_equation'] = latex_with_threshold(Eq(Eq(s['J_p']*s['G'] * Derivative(f['phi'](x),(x,2)), -f['t'](x)), -p, evaluate=False))
+                steps = []
+                final_eqs = []
+                plots = {}                
+                c.append(Symbol('c_1')) # first constant
+                p1 = integrate(-p, x) + c[0] # first integration
+                ps.append(p1)
+                steps.append(latex_with_threshold(Eq(Eq(s['J_p']*s['G'] * Derivative(f['phi'](x),(x,1)),f['M_x'](x)), p1,evaluate=False)))
+                final_eqs.append(Eq(f['M_x'](x), p1, evaluate=False))
+                c.append(Symbol('c_2')) # second constant 
+                p2 = integrate(p1, x) + c[1] # second integration
+                ps.append(p2)
+                steps.append(latex_with_threshold(Eq(s['J_p']*s['G'] * f['phi'](x),p2,evaluate=False)))
+                final_eqs.append(Eq(s['J_p']*s['G'] * f['phi'](x),p2,evaluate=False))
+                twisting_block['integration_steps'] = steps
+                # find out constants
+                constant_det = {}
+                constant_value = {}
+                constant_lit = {}
+                total_unknowns = len(c) + len(reactions)
+                constant_strings = [str(g) for g in c]
+                reaction_strings = [str(g) for g in reactions]
+                for cond in self.boundary_conditions:
+                    if cond[0] == 'M_x':
+                        k = c[0]
+                        p = ps[0]
+                        # check if constant has already been determined, else get next one
+                        if str(k) in constant_det:
+                            for i, item in enumerate(constant_strings):
+                                if item not in constant_det and item != str(k):                                
+                                    k = c[i]
+                                    break
+                        # if constants have been determined, find out reactions
+                        if constant_strings.index(str(k)) == len(constant_strings) - 1:
+                            for i, item in reaction_strings:
+                                if item in constant_det:
+                                    if i + 1 < len(reaction_strings):
+                                        k = c[i]                                    
+                        constant_det[str(k)] = []
+                        # Nx(position) = value = first integration of -p(x)
+                        constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
+                        calculate_constant(cond, constant_det, constant_value, p, k, constant_lit)
+                        if len(constant_det.keys()) == total_unknowns:
+                            break
+                    if cond[0] == 'phi':
+                        k = c[1]
+                        p = (1/(s['J_p']*s['G'])) * ps[1]
+                        # check if constant has already been determined, else get next one
+                        if str(k) in constant_det:
+                            for i, item in enumerate(constant_strings):
+                                if item not in constant_det and item != str(k):                                
+                                    k = c[i]
+                                    break
+                        # if constants have been determined, find out reactions
+                        if constant_strings.index(str(k)) == len(constant_strings) - 1:
+                            for i, item in reaction_strings:
+                                if item in constant_det:
+                                    if i + 1 < len(reaction_strings):
+                                        k = c[i]                         
+                        constant_det[str(k)] = []
+                        # u(position) = value = second integration of -p(x)
+                        constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
+                        calculate_constant(cond, constant_det, constant_value, p, k, constant_lit)
+                        if len(constant_det.keys()) == total_unknowns:
+                            break       
+                # finalize constants
+                finalize_constants(constant_strings, reaction_strings, reactions, constant_value, constant_det)
+                twisting_block['constants'] = constant_det
+                # plots
+                plot_equations(plots, final_eqs, c, constant_value, constant_lit)
+                twisting_block['final_equations'] = final_eqs
+                twisting_block['plots'] = plots
+            elif len(mp['M_x']) > 0:
+                twisting_block['differential_equation'] = latex_with_threshold(Eq(Eq(Derivative(f['M_x'](x),(x,1)), -f['t'](x)), -p, evaluate=False))
+                steps = []
+                final_eqs = []
+                plots = {}                
+                c.append(Symbol('c_1')) # first constant
+                p1 = integrate(-p, x) + c[0] # first integration
+                ps.append(p1)
+                steps.append(latex_with_threshold(Eq(f['M_x'](x), p1,evaluate=False)))
+                final_eqs.append(Eq(f['M_x'](x), p1, evaluate=False))
+                twisting_block['integration_steps'] = steps
+                # find out constants
+                constant_det = {}
+                constant_value = {}
+                constant_lit = {}
+                total_unknowns = len(c) + len(reactions)
+                constant_strings = [str(g) for g in c]
+                reaction_strings = [str(g) for g in reactions]
+                for cond in self.boundary_conditions:
+                    if cond[0] == 'M_x':
+                        k = c[0]
+                        p = ps[0]
+                        # check if constant has already been determined, else get next one
+                        if str(k) in constant_det:
+                            for i, item in enumerate(constant_strings):
+                                if item not in constant_det and item != str(k):                                
+                                    k = c[i]
+                                    break
+                        # if constants have been determined, find out reactions
+                        if constant_strings.index(str(k)) == len(constant_strings) - 1:
+                            for i, item in reaction_strings:
+                                if item in constant_det:
+                                    if i + 1 < len(reaction_strings):
+                                        k = c[i]                                    
+                        constant_det[str(k)] = []
+                        # Nx(position) = value = first integration of -p(x)
+                        constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
+                        calculate_constant(cond, constant_det, constant_value, p, k, constant_lit)
+                        if len(constant_det.keys()) == total_unknowns:
+                            break
+                # finalize constants
+                finalize_constants(constant_strings, reaction_strings, reactions, constant_value, constant_det)
+                twisting_block['constants'] = constant_det
+                # plots
+                plot_equations(plots, final_eqs, c, constant_value, constant_lit)
+                twisting_block['final_equations'] = final_eqs
+                twisting_block['plots'] = plots                                           
+
+            solution_blocks.append(twisting_block)            
 
         return solution_blocks
 
@@ -890,15 +1098,20 @@ class BeamProblem:
         # Add points of interest
         total_points = len(list(self.points))
         for point in self.points:
-            self.fig = add_label(self.fig, self._ev(self.points[point]), -2 * HEIGHT, point, font_size = 16 if total_points < 6 else 12)
-            if ord(point) > ord('A') and total_points > 2:
-                dist = str(simplify(self._s(f'({self.points[point]}) - ({self.points[chr(ord(point) - 1)]})'))).replace('*','')
-                try:
-                    dist = float(dist)
-                    dist = f'{dist:1.2f}'
-                except:
-                    pass
-                self.fig = add_hline_label(self.fig, -2 * HEIGHT, self._ev(self.points[chr(ord(point) - 1)]) + HEIGHT/8, self._ev(self.points[point]) - HEIGHT/8, format_label(dist))
+            if point != 'A':
+                test_pos = self._ev(self.points[chr(ord(point) - 1)])
+            else:
+                test_pos = 0
+            if test_pos < self.beam_size:
+                self.fig = add_label(self.fig, self._ev(self.points[point]), -2 * HEIGHT, point, font_size = 16 if total_points < 6 else 12)
+                if ord(point) > ord('A') and total_points > 2:
+                    dist = str(simplify(self._s(f'({self.points[point]}) - ({self.points[chr(ord(point) - 1)]})')))
+                    try:
+                        dist = float(dist)
+                        dist = f'{dist:1.2f}'
+                    except:
+                        pass
+                    self.fig = add_hline_label(self.fig, -2 * HEIGHT, self._ev(self.points[chr(ord(point) - 1)]) + HEIGHT/8, self._ev(self.points[point]) - HEIGHT/8, format_label(dist).replace('*',''))
 
         # Add the links
         for link in self.links:

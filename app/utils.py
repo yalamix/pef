@@ -1,9 +1,13 @@
-from sympy import Float, sympify, Symbol, Piecewise, Eq, simplify
+from sympy import Float, sympify, Symbol, Piecewise, Eq, simplify, Basic
 from sympy.assumptions.ask import ask
 from sympy.assumptions import Q
 from sympy.functions.special.singularity_functions import SingularityFunction
 from sympy.printing.latex import LatexPrinter
-from typing import List, Union
+from sympy import (
+    SingularityFunction, symbols, sympify, simplify, Basic
+)
+from sympy.core.relational import Gt, Ge, Lt, Le, Relational
+from typing import List, Union, Iterable, Mapping
 from PIL import Image
 import plotly.graph_objects as go
 import numpy as np
@@ -27,7 +31,7 @@ class ThresholdLatexPrinter(LatexPrinter):
         pyf = float(f)
 
         # 2) Use Python’s "{:e}" formatting to get "mantissa e±exp"
-        sci_str = "{:.15e}".format(pyf)               # e.g. "1.234567890123450e+06" :contentReference[oaicite:0]{index=0}
+        sci_str = "{:.15e}".format(pyf)  # e.g. "1.234567890123450e+06"
         mant_str, exp_str = sci_str.split("e")
         e = int(exp_str)
 
@@ -40,14 +44,60 @@ class ThresholdLatexPrinter(LatexPrinter):
 
         # 5) Otherwise defer to SymPy’s default float printer
         return super()._print_Float(f)
-    
-    def _print_SingularityFunction(self, expr):
+
+    def _print_SingularityFunction(self, expr: SingularityFunction) -> str:
+        """
+        Render <x - a>^n as LaTeX.  If `a` is not an atom (e.g. `c+b`), wrap it in parentheses:
+          … \left\langle x - (c + b) \right\rangle^{n} …
+        Otherwise, if `a` is a plain symbol or number, no parentheses are needed:
+          … \left\langle x - a \right\rangle^{n} …
+        """
         xx, aa, nn = expr.args
-        return r'{\left\langle %s - %s \right\rangle}^{%s}' % (
-            self._print(xx),  # x
-            self._print(aa),  # a
-            self._print(nn),  # n
-        )
+
+        # 1) Convert x and n in the usual way
+        px = self._print(xx)
+        pn = self._print(nn)
+
+        # 2) Convert `aa` to LaTeX; then decide if we need parentheses
+        pa = self._print(aa)
+
+        # If `aa` is not a single atom (Symbol, Number, etc.), wrap it:
+        #   - aa.is_Atom is True for Symbol or Number
+        #   - but an Add or Mul or any composite expression has is_Atom=False
+        if not aa.is_Atom:
+            # You can use either \left(...\right) or \bigl(...\bigr), whichever size you like.
+            # Here I’ll use \bigl( … \bigr) to avoid overly-large delimiters in complicated expressions.
+            pa = r'\bigl(' + pa + r'\bigr)'
+
+        return r'{\left\langle %s - %s \right\rangle}^{%s}' % (px, pa, pn)
+
+def unify_symbols(expr: Union[Basic, Iterable[Basic]],
+                  symdict: Mapping[str, Basic]
+                 ) -> Union[Basic, list]:
+    """
+    Replace in `expr` any Symbol whose .name() matches a key in `symdict`
+    by the corresponding symdict[name].
+
+    - expr may be a single SymPy expression or an iterable of them.
+    - symdict maps symbol-names (str) → the canonical Symbol objects you want.
+    Returns the new expression (or list of new expressions), leaving the
+    originals untouched.
+    """
+    def _replace_single(e: Basic) -> Basic:
+        # build replacement map: old_symbol → new_symbol
+        rep = {
+            old: new
+            for old in e.free_symbols
+            for name, new in symdict.items()
+            if old.name == name and old is not new
+        }
+        return e.xreplace(rep)
+
+    if isinstance(expr, Basic):
+        return _replace_single(expr)
+    else:
+        # assume it's an iterable of expressions
+        return [_replace_single(e) for e in expr]
 
 Item = List[Union[str, float, int]]
 
@@ -77,42 +127,117 @@ def remove_zero_flags(collection: List[Item]) -> None:
         if collection[idx][-1] == 0:
             del collection[idx]
 
-def eval_all_singularities(expr_eq: Eq, sub_symbol, sub_value):
-    """
-    For Eq(lhs, rhs) where rhs may be a sum of SingularityFunction(...) + const,
-    substitute sub_symbol → sub_value *inside* each SF, force its Piecewise
-    evaluation, and simplify the final result.
-    """
-    def _eval_one(sf: SingularityFunction):
-        # 1) rewrite this single SF → Piecewise, then substitute
-        pw = sf.rewrite(Piecewise).subs(sub_symbol, sub_value)
-        # 2) grab the branch‐condition (assumed on index 0)
-        cond = pw.args[0][1]
-        # 3) decide which branch holds under sub_value > 0
-        if ask(cond, Q.is_true(sub_value > 0)):
-            return pw.args[0][0]
-        else:
-            return pw.args[1][0]
 
-    # 4) apply to every SingularityFunction in the RHS
-    new_rhs = expr_eq.rhs.replace(
-        lambda e: isinstance(e, SingularityFunction),
-        lambda e: _eval_one(e)
-    )
-    # 5) simplify any remaining arithmetic
-    new_rhs = simplify(new_rhs)
-    # 6) rebuild the equality
-    return Eq(expr_eq.lhs, new_rhs)
+def collapse_singularity_functions(expr: Basic, var: symbols, relations: list) -> Basic:
+    """
+    Given a SymPy expression `expr` containing SingularityFunction instances,
+    collapse every instance of SingularityFunction(f, knot, n) where `f` does not
+    contain the variable `var`, based on known `relations` among constants.
+
+    Parameters
+    ----------
+    expr : sympy.Basic
+        The expression in which to find and collapse SingularityFunction instances.
+    var : sympy.Symbol
+        The “variable” symbol (e.g. x).  If SingularityFunction’s first argument `f`
+        has `var` among its free symbols, we leave it alone.
+    relations : list of sympy.Relational
+        A list of known inequalities among your constant symbols, e.g. [L > a, b > a].
+        Supported types are Gt (>) / Ge (≥) / Lt (<) / Le (≤).  The code uses these
+        to decide the sign of `(f - knot)` whenever `f` is truly a constant (no `x`).
+
+    Returns
+    -------
+    sympy.Basic
+        A new expression in which all “collapsible” SingularityFunction nodes have
+        been replaced by either `0`, `1`, or `(f - knot)**n` as appropriate.
+    """
+    def _collapse_sf(node):
+        # Only process SingularityFunction nodes
+        if not isinstance(node, SingularityFunction):
+            return node
+
+        f, knot, n = node.args
+
+        # 1) If the “variable” appears in f, leave this singularity alone
+        if var in f.free_symbols:
+            return node
+
+        # 2) Otherwise, compute diff = f - knot and simplify
+        diff = simplify(f - knot)
+
+        # 3) If diff.is_positive or diff.is_negative is already decided by Sympy, use that:
+        if diff.is_positive:
+            # f > knot
+            return (1 if n == 0 else diff**n)
+        if diff.is_negative:
+            # f < knot
+            return 0  # for n >= 0
+
+        # 4) If still undecided, see if any of our user‐supplied relations matches “diff”
+        for rel in relations:
+            if not isinstance(rel, Relational):
+                continue
+            u, v = rel.lhs, rel.rhs
+            target = simplify(u - v)
+
+            # Case A: diff ==  (u - v)
+            if simplify(diff - target) == 0:
+                # Now dispatch based on whether rel is >, ≥, <, or ≤
+                if isinstance(rel, Gt):   # u > v  => (u - v) > 0
+                    return (1 if n == 0 else diff**n)
+                if isinstance(rel, Ge):   # u ≥ v => (u - v) ≥ 0
+                    if n == 0:
+                        return 1
+                    else:
+                        return diff**n
+                if isinstance(rel, Lt):   # u < v  => (u - v) < 0
+                    return 0
+                if isinstance(rel, Le):   # u ≤ v => (u - v) ≤ 0
+                    if diff == 0 and n == 0:
+                        return 1
+                    return 0
+
+            # Case B: diff == -(u - v)  (i.e. diff = v - u)
+            if simplify(diff + target) == 0:
+                if isinstance(rel, Gt):   # u > v  => (v - u) < 0
+                    return 0
+                if isinstance(rel, Ge):   # u ≥ v => (v - u) ≤ 0
+                    if diff == 0 and n == 0:
+                        return 1
+                    return 0
+                if isinstance(rel, Lt):   # u < v  => (v - u) > 0
+                    return (1 if n == 0 else diff**n)
+                if isinstance(rel, Le):   # u ≤ v => (v - u) ≥ 0
+                    if n == 0:
+                        return 1
+                    return diff**n
+
+        # 5) If we still can’t decide sign, leave it alone
+        return node
+
+    # Traverse the entire expression and replace every SingularityFunction by _collapse_sf(...)
+    return expr.replace(lambda e: isinstance(e, SingularityFunction), _collapse_sf)
 
 def format_label(text: str) -> str:
     """
     Convert a plain‐text label into Plotly‐HTML with:
-      * simple fractions a/b → <sup>a</sup>/<sub>b</sub>
-      * underscores  x_y → x<sub>y</sub> (only the token after each `_`)
+      1) simple fractions     a/b  →  <sup>a</sup>/<sub>b</sub>
+      2) underscores          x_y  →  x<sub>y</sub>
+      3) named Greek letters  phi, theta, etc.  → their Unicode (φ, θ, …)
+    
+    NOTE on ordering:
+    - We do the fraction‐replacement first.
+    - Then we do the underscore‐to‐<sub>…</sub> replacement.
+    - Finally, with all HTML tags in place, we do a simple string‐replace
+      for any Greek names (like “phi”) → their Unicode “φ”. This way,
+      if the subscript token is “pphi”, it becomes “p<sub>pphi</sub>” first,
+      and only then we replace “phi” → “ϕ” inside that subscript.
     """
-    # 1) Fractions: <sup>num</sup>/<sub>den</sub>
-    def _frac(m):
-        num, den = m.group(1), m.group(2)
+
+    # 1) Fractions: replace a/b ⇒ <sup>a</sup>/<sub>b</sub>
+    def _frac(match):
+        num, den = match.group(1), match.group(2)
         return f"<sup>{num}</sup>/<sub>{den}</sub>"
 
     text = re.sub(
@@ -121,9 +246,43 @@ def format_label(text: str) -> str:
         text
     )
 
-    # 2) Subscripts: replace every _token with <sub>token</sub>
-    #    \w+ matches letters, digits or underscore — adjust if you need hyphens etc.
+    # 2) Subscripts: replace every occurrence of "_token" ⇒ "<sub>token</sub>"
     text = re.sub(r'_(\w+)', r'<sub>\1</sub>', text)
+
+    # 3) Named‐Greek → Unicode
+    #    (only lowercase names are handled here; add uppercase if needed)
+    greek_map = {
+        "alpha":   "α",
+        "beta":    "β",
+        "gamma":   "γ",
+        "delta":   "δ",
+        "epsilon": "ε",
+        "zeta":    "ζ",
+        "eta":     "η",
+        "theta":   "θ",
+        "iota":    "ι",
+        "kappa":   "κ",
+        "lambda":  "λ",
+        "mu":      "μ",
+        "nu":      "ν",
+        "xi":      "ξ",
+        "omicron": "ο",
+        "pi":      "π",
+        "rho":     "ρ",
+        "sigma":   "σ",
+        "tau":     "τ",
+        "upsilon": "υ",
+        "phi":     "ϕ",
+        "chi":     "χ",
+        "psi":     "ψ",
+        "omega":   "ω",
+    }
+
+    # Simply replace ANY occurrence of “phi” (etc.) with its Unicode.
+    # Because we already wrapped things in <sub>…</sub> or <sup>…</sup>, 
+    # this will correctly transform “pphi” → “pϕ” inside that tag.
+    for name, uni in greek_map.items():
+        text = text.replace(name, uni)
 
     return text
 

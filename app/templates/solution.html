@@ -26,9 +26,14 @@
             </div>   
             <div>
                 <h2 class="p-1 rounded-full">Equações Finais:</h2>
-                {% for equation in solution['final_equations'] %}
+                <h2 class="p-1 rounded-full text-center">Analítico:</h2>
+                {% for equation in solution['final_equations'][:len(solution['final_equations'])//2] %}
                 <p>$$ {{ equation }} $$</p>
                 {% endfor %}
+                <h2 class="p-1 rounded-full text-center">Numérico:</h2>
+                {% for equation in solution['final_equations'][len(solution['final_equations'])//2:] %}
+                <p>$$ {{ equation }} $$</p>
+                {% endfor %}                
             </div>       
             <div>
                 <h2 class="p-1 rounded-full">Diagramas:</h2>

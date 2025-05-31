@@ -42,9 +42,9 @@ def plot_rectangle(width, height,
 
     # Update axes to include both the rectangle and the fixed-length arrows.
     x_min = -width * 0.2
-    x_max = max(width, arrow_length) + width * 0.2
+    x_max = width + width * 0.2
     y_min = -height * 0.2
-    y_max = max(height, arrow_length) + height * 0.2
+    y_max = height + height * 0.2
     fig.update_xaxes(range=[x_min, x_max])
     fig.update_yaxes(range=[y_min, y_max])
     
