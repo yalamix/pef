@@ -258,7 +258,6 @@ def format_label(text: str) -> str:
         "delta":   "δ",
         "epsilon": "ε",
         "zeta":    "ζ",
-        "eta":     "η",
         "theta":   "θ",
         "iota":    "ι",
         "kappa":   "κ",
@@ -353,3 +352,46 @@ def parse_and_update_symbols(expr_str: str, existing: list[str]) -> list[str]:
     new_names = all_names - set(existing)
     
     return list(new_names)
+
+def is_only_one_L_and_numbers(expr_str: str, primary: str = "L") -> bool:
+    """
+    Return True if `expr_str` parses to a SymPy expression whose only free symbol
+    is `primary` (e.g. "L") and that symbol appears exactly once in the entire tree.
+    Otherwise return False.
+
+    Examples:
+        is_only_one_L_and_numbers("L - 5")     -> True
+        is_only_one_L_and_numbers("L - L/2")   -> False   (L appears twice)
+        is_only_one_L_and_numbers("L - a")     -> False   (a is an extra symbol)
+        is_only_one_L_and_numbers("2*L + 3")   -> False   (L appears once? Actually count is 1—True)
+        is_only_one_L_and_numbers("2*L")       -> True
+        is_only_one_L_and_numbers("5")         -> False   (no L at all)
+    """
+    # 1) Create a SymPy Symbol for “L” (or whatever `primary` is)
+    L = symbols(primary)
+
+    # 2) Parse the string into a SymPy expression, telling sympify that
+    #    any occurrence of the name `primary` is the symbol L.  If the string
+    #    contains any other letter‐strings (like “a” or “x”), those become new Symbols
+    #    and end up in expr.free_symbols.
+    try:
+        expr = sympify(expr_str, locals={primary: L})
+    except Exception:
+        # If parsing fails entirely, we treat that as “not valid”
+        return False
+
+    # 3) Check which symbols actually appear:
+    free_syms = expr.free_symbols
+    #    We want exactly {L} (no extras).  If free_syms is empty or contains anything
+    #    other than L, return False.
+    if free_syms != {L}:
+        return False
+
+    # 4) Count how many times L appears in the expression tree.
+    #    expr.count(L) returns the number of sub‐expressions equal to L.
+    #    For example:
+    #       - sympify("L - 5").count(L)  == 1
+    #       - sympify("L - L/2").count(L) == 2
+    #       - sympify("2*L").count(L) == 1
+    cnt = expr.count(L)
+    return (cnt == 1)

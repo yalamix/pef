@@ -646,6 +646,8 @@ def add_semicircle_arrow(
     label_font : dict, optional
         Font styling for the label.
     """
+    arrow_size = radius/3
+    label_font=dict(color=color, size=14)
     # Determine angle range for a semicircle
     if orientation == 'counterclockwise':
         angles = np.linspace(start_angle, start_angle + np.pi, arc_points)

@@ -12,8 +12,8 @@ Quando finalizá-lo, irei disponibilizá-lo na internet para qualquer um poder u
 - Visualização gráfica do problema.
 - Pontos de interesse.
 - Rotacionar o sistema de coordenadas (em construção).
-- Detectar automaticamente as condições de contorno e restrições (em construção).
-- Determinar as forças, momentos, deformação e deflexão e gerar seus respectivos gráficos (em construção).
+- Detectar automaticamente as condições de contorno e restrições.
+- Determinar as forças, momentos, deformação e deflexão e gerar seus respectivos gráficos.
 - Dimensionamento de viga (a fazer).
 - Dimensionamento de seção circular (a fazer).
 - Exportar o problema em arquivo JSON (a fazer).
