@@ -173,7 +173,7 @@ async def link(
     ):
     session = db.query(UserSession).where(UserSession.id == session_id).first()
     BP = BeamProblem(json.dumps(session.problem[0].parameters))
-    result = BP.add_link(link_type, link_position)
+    result = BP.add_link(link_type, link_position.replace(',','.'))
     BP.calculate_boundary_conditions()
     lt = {
         'cantilever': 'Engaste',

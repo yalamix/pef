@@ -1,4 +1,4 @@
-from sympy import Float, sympify, Symbol, Piecewise, Eq, simplify, Basic
+from sympy import Float, sympify, Symbol, Piecewise, Eq, simplify, Basic, Rational, Expr
 from sympy.assumptions.ask import ask
 from sympy.assumptions import Q
 from sympy.functions.special.singularity_functions import SingularityFunction
@@ -27,23 +27,37 @@ class ThresholdLatexPrinter(LatexPrinter):
         self.sci_max = sci_max
 
     def _print_Float(self, f: Float) -> str:
-        # 1) Turn the SymPy Float into a native Python float
+        """
+        1) If f is within 1e-12 of an integer, print as “175” (no .00).
+        2) Else if f can be written as an irreducible fraction with numerator
+           and denominator both < 100 (and denominator != 1), print as
+           “\frac{num}{den}”.
+        3) Else if exponent outside [sci_min, sci_max], use scientific notation
+           “m\times10^{e}” with mantissa from "{:.15e}" logic.
+        4) Otherwise, round to two decimal places (“%.2f”).
+        """
         pyf = float(f)
 
-        # 2) Use Python’s "{:e}" formatting to get "mantissa e±exp"
-        sci_str = "{:.15e}".format(pyf)  # e.g. "1.234567890123450e+06"
+        # 1) Integer check via rounding within a tiny epsilon
+        if abs(pyf - round(pyf)) < 1e-12:
+            return str(int(round(pyf)))
+
+        # 2) Fraction‐check with max denominator 999 (skip denom=1)
+        R = Rational(pyf).limit_denominator(99)
+        if R.q != 1 and abs(float(R) - pyf) < 1e-12 \
+           and abs(R.p) < 100 and abs(R.q) < 100:
+            return rf"\frac{{{R.p}}}{{{R.q}}}"
+
+        # 3) Scientific‐notation check
+        sci_str = "{:.15e}".format(pyf)
         mant_str, exp_str = sci_str.split("e")
         e = int(exp_str)
-
-        # 3) Strip trailing zeros & “.” from the mantissa
         mant_str = mant_str.rstrip("0").rstrip(".")
-
-        # 4) If exponent outside [sci_min, sci_max], emit in m×10^e form
         if e > self.sci_max or e < self.sci_min:
             return rf"{mant_str}\times10^{{{e}}}"
 
-        # 5) Otherwise defer to SymPy’s default float printer
-        return super()._print_Float(f)
+        # 4) Otherwise, regular float rounded to 2 decimals
+        return f"{pyf:.2f}"
 
     def _print_SingularityFunction(self, expr: SingularityFunction) -> str:
         """
@@ -65,8 +79,7 @@ class ThresholdLatexPrinter(LatexPrinter):
         #   - aa.is_Atom is True for Symbol or Number
         #   - but an Add or Mul or any composite expression has is_Atom=False
         if not aa.is_Atom:
-            # You can use either \left(...\right) or \bigl(...\bigr), whichever size you like.
-            # Here I’ll use \bigl( … \bigr) to avoid overly-large delimiters in complicated expressions.
+            # Use \bigl(...\bigr) to avoid overly-large delimiters
             pa = r'\bigl(' + pa + r'\bigr)'
 
         return r'{\left\langle %s - %s \right\rangle}^{%s}' % (px, pa, pn)
@@ -301,7 +314,7 @@ def latex_with_threshold(expr, **printer_kwargs):
     Works on sympy expressions *or* plain Python floats/ints.
     """
     # 1) Turn Python native types into SymPy objects
-    expr = sympify(expr)
+    expr = sympify(expr)    
     # 2) Create and use our custom printer
     printer = ThresholdLatexPrinter(**printer_kwargs)
     return printer.doprint(expr)

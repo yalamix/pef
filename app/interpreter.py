@@ -661,10 +661,14 @@ class BeamProblem:
             if link_type == 'mobile_support':
                 if len(self.shear_forces) > 0 or len(self.bending_moments) > 0:
                     # Shear and bending
+                    if self._ev(position) == 0 or self._ev(position) == self.beam_size:
+                        add_condition('M_z', position, 0)
                     add_condition('v', position, 0)
             if link_type == 'fixed_support':
                 if len(self.shear_forces) > 0 or len(self.bending_moments) > 0:
                     # Shear and bending
+                    if self._ev(position) == 0 or self._ev(position) == self.beam_size:
+                        add_condition('M_z', position, 0)
                     add_condition('v', position, 0)
                 if len(self.normal_forces) > 0:
                     # Normal 
@@ -676,30 +680,33 @@ class BeamProblem:
                 if len(self.shear_forces) > 0 or len(self.bending_moments) > 0:
                     add_condition('V_y', position, 0)
 
+        boundary_check_start = self._check_boundaries()
+        boundary_check_end = self._check_boundaries(False)
+
         # Empty boundaries
         if len(mapped_points['M_z']) + len(mapped_points['V_y']) + len(mapped_points['theta_Z']) + len(mapped_points['v']) < degrees_of_freedom['shear']:
             if len(self.shear_forces) > 0 or len(self.bending_moments) > 0:
-                if 0 not in mapped_points['V_y'] and not self._check_boundaries():
+                if 0 not in mapped_points['V_y'] and not boundary_check_start:
                     add_condition('V_y', 0, 0)
-                if 'L' not in mapped_points['V_y'] and not self._check_boundaries(False):
+                if 'L' not in mapped_points['V_y'] and not boundary_check_end:
                     add_condition('V_y', 'L', 0)           
-                if 0 not in mapped_points['M_z'] and not self._check_boundaries():
+                if 0 not in mapped_points['M_z'] and not boundary_check_start:
                     add_condition('M_z', 0, 0)
-                if 'L' not in mapped_points['M_z'] and not self._check_boundaries(False):
+                if 'L' not in mapped_points['M_z'] and not boundary_check_end:
                     add_condition('M_z', 'L', 0)       
 
         if len(mapped_points['N_x']) + len(mapped_points['u']) < degrees_of_freedom['normal']:
             if len(self.normal_forces) > 0:
-                if 0 not in mapped_points['N_x'] and not self._check_boundaries():
+                if 0 not in mapped_points['N_x'] and not boundary_check_start:
                     add_condition('N_x', 0, 0)
-                if 'L' not in mapped_points['N_x'] and not self._check_boundaries(False):
+                if 'L' not in mapped_points['N_x'] and not boundary_check_end:
                     add_condition('N_x', 'L', 0)
                        
         if len(mapped_points['M_x']) + len(mapped_points['phi']) < degrees_of_freedom['twisting']:
             if len(self.twisting_moments) > 0:
-                if 0 not in mapped_points['M_x'] and not self._check_boundaries():
+                if 0 not in mapped_points['M_x'] and not boundary_check_start:
                     add_condition('M_x', 0, 0)
-                if 'L' not in mapped_points['M_x'] and not self._check_boundaries(False):
+                if 'L' not in mapped_points['M_x'] and not boundary_check_end:
                     add_condition('M_x', 'L', 0)                       
 
         priority = ['v', 'theta_Z', 'M_z', 'V_y', 'u', 'N_x', 'phi', 'M_x']
@@ -747,6 +754,9 @@ class BeamProblem:
                             relations.append(Gt(item, other))
         symdict = {str(sb): sb for sb in vardict}
         solution_blocks = []
+
+        print(self.boundary_conditions, '\n')
+        print(mp, '\n')
 
         def calculate_constant(cond: Item, constant_det: dict, constant_value: dict, p: Expr, k: Expr, constant_lit: dict):
             # sb = position of condition
@@ -873,7 +883,7 @@ class BeamProblem:
                 total_unknowns = len(c) + len(reactions)
                 constant_strings = [str(g) for g in c]
                 reaction_strings = [str(g) for g in reactions]
-                for cond in self.boundary_conditions:
+                for cond in self.boundary_conditions:                    
                     if cond[0] == 'N_x':
                         k = c[0]
                         p = ps[0]
@@ -885,7 +895,7 @@ class BeamProblem:
                                     k = c[i]
                                     break
                         # if constants have been determined, find out reactions
-                        if ogk in constant_det and constant_strings.index(ogk) == len(constant_strings[:1]) - 1:
+                        if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings[:1]) - 1:
                             for i, item in enumerate(reaction_strings):
                                 if item not in constant_det:
                                     k = reactions[i]
@@ -907,7 +917,7 @@ class BeamProblem:
                                     k = c[i]
                                     break
                         # if constants have been determined, find out reactions
-                        if ogk in constant_det and constant_strings.index(ogk) == len(constant_strings) - 1:
+                        if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings) - 1:
                             for i, item in enumerate(reaction_strings):
                                 if item not in constant_det:
                                     k = reactions[i]
@@ -955,7 +965,7 @@ class BeamProblem:
                                     k = c[i]
                                     break
                         # if constants have been determined, find out reactions
-                        if ogk in constant_det and constant_strings.index(ogk) == len(constant_strings[:1]) - 1:
+                        if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings[:1]) - 1:
                             for i, item in enumerate(reaction_strings):
                                 if item not in constant_det:
                                     k = reactions[i]
@@ -1027,7 +1037,7 @@ class BeamProblem:
                                     k = c[i]
                                     break
                         # if constants have been determined, find out reactions
-                        if ogk in constant_det and constant_strings.index(ogk) == len(constant_strings[:1]) - 1:
+                        if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings[:1]) - 1:
                             for i, item in enumerate(reaction_strings):
                                 if item not in constant_det:
                                     k = reactions[i]
@@ -1049,7 +1059,7 @@ class BeamProblem:
                                     k = c[i]
                                     break
                         # if constants have been determined, find out reactions
-                        if ogk in constant_det and constant_strings.index(ogk) == len(constant_strings) - 1:
+                        if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings) - 1:
                             for i, item in enumerate(reaction_strings):
                                 if item not in constant_det:
                                     k = reactions[i]
@@ -1097,7 +1107,7 @@ class BeamProblem:
                                     k = c[i]
                                     break
                         # if constants have been determined, find out reactions
-                        if ogk in constant_det and constant_strings.index(ogk) == len(constant_strings[:1]) - 1:
+                        if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings[:1]) - 1:
                             for i, item in enumerate(reaction_strings):
                                 if item not in constant_det:
                                     k = reactions[i]
@@ -1174,12 +1184,12 @@ class BeamProblem:
                         ogk = str(k)
                         # check if constant has already been determined, if true then get next one
                         if ogk in constant_det:
-                            for i, item in enumerate(constant_strings[:1]):
+                            for i, item in enumerate(constant_strings[:1][::-1]):
                                 if item not in constant_det and item != ogk:                                
-                                    k = c[i]
+                                    k = c[:1][::-1][i]
                                     break
                         # if constants have been determined, find out reactions
-                        if ogk in constant_det and constant_strings.index(ogk) == len(constant_strings[:1]) - 1:
+                        if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings[:1]) - 1:
                             for i, item in enumerate(reaction_strings):
                                 if item not in constant_det:
                                     k = reactions[i]
@@ -1196,12 +1206,13 @@ class BeamProblem:
                         ogk = str(k)
                         # check if constant has already been determined, if true then get next one
                         if ogk in constant_det:
-                            for i, item in enumerate(constant_strings[:2]):
+                            for i, item in enumerate(constant_strings[:2][::-1]):                                
                                 if item not in constant_det and item != ogk:                                
-                                    k = c[i]
+                                    k = c[:2][::-1][i]
                                     break   
+                        print(cond, constant_value,'\n')
                         # if constants have been determined, find out reactions
-                        if ogk in constant_det and constant_strings.index(ogk) == len(constant_strings[:2]) - 1:
+                        if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings[:2]) - 1:
                             for i, item in enumerate(reaction_strings):
                                 if item not in constant_det:
                                     k = reactions[i]
@@ -1218,12 +1229,12 @@ class BeamProblem:
                         ogk = str(k)
                         # check if constant has already been determined, if true then get next one
                         if ogk in constant_det:
-                            for i, item in enumerate(constant_strings[:3]):
+                            for i, item in enumerate(constant_strings[:3][::-1]):
                                 if item not in constant_det and item != ogk:                                
-                                    k = c[i]
+                                    k = c[:3][::-1][i]
                                     break
                         # if constants have been determined, find out reactions
-                        if ogk in constant_det and constant_strings.index(ogk) == len(constant_strings[:3]) - 1:
+                        if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings[:3]) - 1:
                             for i, item in enumerate(reaction_strings):
                                 if item not in constant_det:
                                     k = reactions[i]
@@ -1240,12 +1251,13 @@ class BeamProblem:
                         ogk = str(k)
                         # check if constant has already been determined, if true then get next one
                         if ogk in constant_det:
-                            for i, item in enumerate(constant_strings):
+                            for i, item in enumerate(constant_strings[::-1]):                                
                                 if item not in constant_det and item != ogk:                                
-                                    k = c[i]
+                                    k = c[::-1][i]
                                     break
+                        print(cond, constant_value,'\n')
                         # if constants have been determined, find out reactions
-                        if ogk in constant_det and constant_strings.index(ogk) == len(constant_strings) - 1:
+                        if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings) - 1:
                             for i, item in enumerate(reaction_strings):
                                 if item not in constant_det:
                                     k = reactions[i]
@@ -1298,7 +1310,7 @@ class BeamProblem:
                                     k = c[i]
                                     break
                         # if constants have been determined, find out reactions
-                        if ogk in constant_det and constant_strings.index(ogk) == len(constant_strings[:1]) - 1:
+                        if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings[:1]) - 1:
                             for i, item in enumerate(reaction_strings):
                                 if item not in constant_det:
                                     k = reactions[i]
@@ -1320,7 +1332,7 @@ class BeamProblem:
                                     k = c[i]
                                     break
                         # if constants have been determined, find out reactions
-                        if ogk in constant_det and constant_strings.index(ogk) == len(constant_strings) - 1:
+                        if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings) - 1:
                             for i, item in enumerate(reaction_strings):
                                 if item not in constant_det:
                                     k = reactions[i]                                    
@@ -1386,7 +1398,7 @@ class BeamProblem:
                         dist = float(dist)
                         dist = f'{dist:1.2f}'
                     except:
-                        if is_only_one_L_and_numbers(dist):
+                        if is_only_one_L_and_numbers(dist) and '/' not in dist:
                             dist = f'{ev(dist):1.2f}'
                     dist = dist.replace('.',',')
                     self.fig = add_hline_label(self.fig, -2 * HEIGHT, ev(self.points[chr(ord(point) - 1)]) + HEIGHT/8, ev(self.points[point]) - HEIGHT/8, format_label(dist).replace('*',''))
