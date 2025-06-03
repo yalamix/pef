@@ -570,16 +570,22 @@ class BeamProblem:
         s, f = self._get_functions_and_symbols()
         return [latex_with_threshold(Eq(f[eq[0]](self._s(eq[1])),self._s(eq[2]))) for eq in self.boundary_conditions]
 
-    def _check_boundaries(self, left=True) -> bool:
+    def _check_boundaries(self, left=True, kind='bending') -> bool:
         """
         """
+        lds = {
+            'normal': self.normal_forces,
+            'twisting': self.twisting_moments,
+            'shear': self.shear_forces,
+            'bending': self.bending_moments
+        }
         t = 0 if left else self.beam_size
-        for load in self.normal_forces + self.shear_forces + self.bending_moments + self.twisting_moments:
+        for load in lds[kind]:
             if self._ev(load['start']) == t and load['n'] < 0:
                 return True
         for link in self.links:
             if self._ev(link[list(link.keys())[0]]) == t:
-                return True
+                return True            
         return False
 
     def calculate_boundary_conditions(self):
@@ -612,9 +618,9 @@ class BeamProblem:
             add_item(self.boundary_conditions, [func, pos, value, 0])
             mapped_points[func].append(pos) if pos not in mapped_points[func] else None
 
-        def create_boundary_condition_from_force(force: dict, func: str) -> None:
+        def create_boundary_condition_from_force(force: dict, func: str, kind: str) -> None:
             if force['r']:
-                degrees_of_freedom['normal'] += 1
+                degrees_of_freedom[kind] += 1
             if force['n'] < 0:
                 if self._ev(force['start']) == 0:
                     if force['pos'] and 0 not in mapped_points[func]:
@@ -629,19 +635,19 @@ class BeamProblem:
 
         # Normal
         for force in self.normal_forces:
-            create_boundary_condition_from_force(force, 'N_x')
+            create_boundary_condition_from_force(force, 'N_x', 'normal')
 
         # Twisting
         for moment in self.twisting_moments:
-            create_boundary_condition_from_force(moment, 'M_x')
+            create_boundary_condition_from_force(moment, 'M_x', 'twisting')
 
         # Shear
         for force in self.shear_forces:
-            create_boundary_condition_from_force(force, 'V_y')
+            create_boundary_condition_from_force(force, 'V_y', 'shear')
 
         # Bending
         for moment in self.bending_moments:
-            create_boundary_condition_from_force(moment, 'M_z')
+            create_boundary_condition_from_force(moment, 'M_z', 'shear')
 
         # Links
         for link in self.links:
@@ -680,33 +686,30 @@ class BeamProblem:
                 if len(self.shear_forces) > 0 or len(self.bending_moments) > 0:
                     add_condition('V_y', position, 0)
 
-        boundary_check_start = self._check_boundaries()
-        boundary_check_end = self._check_boundaries(False)
-
         # Empty boundaries
         if len(mapped_points['M_z']) + len(mapped_points['V_y']) + len(mapped_points['theta_Z']) + len(mapped_points['v']) < degrees_of_freedom['shear']:
             if len(self.shear_forces) > 0 or len(self.bending_moments) > 0:
-                if 0 not in mapped_points['V_y'] and not boundary_check_start:
+                if 0 not in mapped_points['V_y'] and not self._check_boundaries(True,'shear'):
                     add_condition('V_y', 0, 0)
-                if 'L' not in mapped_points['V_y'] and not boundary_check_end:
+                if 'L' not in mapped_points['V_y'] and not self._check_boundaries(False,'shear'):
                     add_condition('V_y', 'L', 0)           
-                if 0 not in mapped_points['M_z'] and not boundary_check_start:
+                if 0 not in mapped_points['M_z'] and not self._check_boundaries():
                     add_condition('M_z', 0, 0)
-                if 'L' not in mapped_points['M_z'] and not boundary_check_end:
+                if 'L' not in mapped_points['M_z'] and not self._check_boundaries(False):
                     add_condition('M_z', 'L', 0)       
 
         if len(mapped_points['N_x']) + len(mapped_points['u']) < degrees_of_freedom['normal']:
             if len(self.normal_forces) > 0:
-                if 0 not in mapped_points['N_x'] and not boundary_check_start:
+                if 0 not in mapped_points['N_x'] and not self._check_boundaries(True,'normal'):
                     add_condition('N_x', 0, 0)
-                if 'L' not in mapped_points['N_x'] and not boundary_check_end:
+                if 'L' not in mapped_points['N_x'] and not self._check_boundaries(False,'normal'):
                     add_condition('N_x', 'L', 0)
                        
         if len(mapped_points['M_x']) + len(mapped_points['phi']) < degrees_of_freedom['twisting']:
             if len(self.twisting_moments) > 0:
-                if 0 not in mapped_points['M_x'] and not boundary_check_start:
+                if 0 not in mapped_points['M_x'] and not self._check_boundaries(True,'twisting'):
                     add_condition('M_x', 0, 0)
-                if 'L' not in mapped_points['M_x'] and not boundary_check_end:
+                if 'L' not in mapped_points['M_x'] and not self._check_boundaries(False,'twisting'):
                     add_condition('M_x', 'L', 0)                       
 
         priority = ['v', 'theta_Z', 'M_z', 'V_y', 'u', 'N_x', 'phi', 'M_x']
@@ -1210,7 +1213,6 @@ class BeamProblem:
                                 if item not in constant_det and item != ogk:                                
                                     k = c[:2][::-1][i]
                                     break   
-                        print(cond, constant_value,'\n')
                         # if constants have been determined, find out reactions
                         if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings[:2]) - 1:
                             for i, item in enumerate(reaction_strings):
@@ -1255,7 +1257,6 @@ class BeamProblem:
                                 if item not in constant_det and item != ogk:                                
                                     k = c[::-1][i]
                                     break
-                        print(cond, constant_value,'\n')
                         # if constants have been determined, find out reactions
                         if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings) - 1:
                             for i, item in enumerate(reaction_strings):

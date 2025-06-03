@@ -80,13 +80,25 @@
           Adicionar condição de contorno ou restrição
         </a>              
         <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
-          <i class="ri-square-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
-          Dimensionar viga
-        </a>          
+          <i class="ri-contract-right-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          Dimensionar deslocamento
+        </a>   
         <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
           <i class="ri-donut-chart-fill mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
           Dimensionar seção circular
-        </a>        
+        </a>              
+        <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+          <i class="ri-square-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          Dimensionar viga
+        </a>   
+        <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+          <i class="ri-arrow-left-right-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          Cisalhamento na flexão
+        </a>          
+        <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+          <i class="ri-pulse-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          Critérios de falha
+        </a>              
       </nav>
 
       <!-- Variables -->
@@ -140,20 +152,20 @@
         <div class="flex-1 flex justify-center lg:ml-6 lg:justify-start">
           <div>
             <a href="#" id="toggle-sidebar" class="group flex items-center text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900">
-              <i id="toggle-sidebar" class="ri-arrow-left-right-line m-1 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+              <i id="toggle-sidebar" class="ri-expand-left-right-fill m-1 text-gray-400 group-hover:text-gray-500 text-lg"></i>
             </a>
           </div>
         </div>
         <div class="ml-4 flex items-center md:ml-6">
-          <button class="p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+          <button class="ml-2 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
             <a href="/reset"><span>Resetar</span></a>
             <!-- <i class="ri-notification-line h-6 w-6"></i> -->
           </button>            
-          <button hx-get="/debug" hx-target="body" hx-swap="beforeend" class="p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+          <button hx-get="/debug" hx-target="body" hx-swap="beforeend" class="ml-2 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
             <span>Debug</span>
             <!-- <i class="ri-notification-line h-6 w-6"></i> -->
           </button>          
-          <button class="p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+          <button class="ml-2 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
             <span>Baixar</span>
             <!-- <i class="ri-notification-line h-6 w-6"></i> -->
           </button>
