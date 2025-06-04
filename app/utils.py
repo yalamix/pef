@@ -1,4 +1,4 @@
-from sympy import Float, sympify, Symbol, Piecewise, Eq, simplify, Basic, Rational, Expr
+from sympy import Float, sympify, Symbol, Piecewise, Eq, simplify, Basic, Rational, Expr, Add
 from sympy.assumptions.ask import ask
 from sympy.assumptions import Q
 from sympy.functions.special.singularity_functions import SingularityFunction
@@ -83,6 +83,36 @@ class ThresholdLatexPrinter(LatexPrinter):
             pa = r'\bigl(' + pa + r'\bigr)'
 
         return r'{\left\langle %s - %s \right\rangle}^{%s}' % (px, pa, pn)
+
+def remove_negative_singularity_terms(expr):
+    """
+    Removes terms containing SingularityFunction with negative exponents from the expression.
+    
+    Parameters:
+        expr (sympy expression): The input expression.
+        
+    Returns:
+        sympy expression: The expression with negative exponent SingularityFunction terms removed.
+    """
+    # Expand the expression to separate terms
+    expr = expr.expand()
+    
+    # If the expression is an addition of terms
+    if isinstance(expr, Add):
+        new_terms = []
+        for term in expr.args:
+            # Check if the term contains a SingularityFunction with negative exponent
+            singularity_funcs = term.atoms(SingularityFunction)
+            if any(sf.args[2].is_number and sf.args[2] < 0 for sf in singularity_funcs):
+                continue  # Skip this term
+            new_terms.append(term)
+        return Add(*new_terms)
+    else:
+        # For non-additive expressions, check directly
+        singularity_funcs = expr.atoms(SingularityFunction)
+        if any(sf.args[2].is_number and sf.args[2] < 0 for sf in singularity_funcs):
+            return 0  # Remove the entire expression
+        return expr
 
 def unify_symbols(expr: Union[Basic, Iterable[Basic]],
                   symdict: Mapping[str, Basic]
@@ -344,7 +374,7 @@ def fig_to_rotated_img(fig: go.Figure, rotation_angle: int = 0) -> str:
 
     # Form Data URI and wrap in an <img> tag
     data_uri = f"data:image/png;base64,{b64_str}"
-    img_html = f'<img src="{data_uri}" alt="Rotated Plot" />'
+    img_html = f'<img id="model" src="{data_uri}" alt="Rotated Plot" />'
     return img_html
 
 def parse_and_update_symbols(expr_str: str, existing: list[str]) -> list[str]:

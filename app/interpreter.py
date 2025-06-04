@@ -570,6 +570,24 @@ class BeamProblem:
         s, f = self._get_functions_and_symbols()
         return [latex_with_threshold(Eq(f[eq[0]](self._s(eq[1])),self._s(eq[2]))) for eq in self.boundary_conditions]
 
+    def _get_position_constants(self) -> List[str]:
+        """
+        """
+        consts = set(['L'])
+        for variable in self.variables:
+            for load in self.normal_forces + self.twisting_moments + self.shear_forces + self.bending_moments:
+                if isinstance(load['start'],str):
+                    if variable in load['start']:
+                        consts.add(variable)
+                if isinstance(load['stop'],str):
+                    if variable in load['stop']:
+                        consts.add(variable)
+            for link in self.links:
+                if isinstance(link[list(link.keys())[0]], str):
+                    if variable in link[list(link.keys())[0]]:
+                        consts.add(variable)
+        return list(consts)
+
     def _check_boundaries(self, left=True, kind='bending') -> bool:
         """
         """
@@ -729,14 +747,20 @@ class BeamProblem:
             )
         )
 
-        return mapped_points
+        enough = {
+            'shear': len(mapped_points['M_z']) + len(mapped_points['V_y']) + len(mapped_points['theta_Z']) + len(mapped_points['v']) >= degrees_of_freedom['shear'],
+            'normal': len(mapped_points['N_x']) + len(mapped_points['u']) >= degrees_of_freedom['normal'],
+            'twisting': len(mapped_points['M_x']) + len(mapped_points['phi']) >= degrees_of_freedom['twisting']
+        }
+
+        return mapped_points, enough
 
     def solve(self):
         """
         """
         # WARNING: insanely ugly code ahead
         s, f = self._get_functions_and_symbols()
-        mp = self.calculate_boundary_conditions()
+        mp, en = self.calculate_boundary_conditions()
         x = symbols('x')
         vardict = self._get_symbol_value()
         relations = []
@@ -758,8 +782,15 @@ class BeamProblem:
         symdict = {str(sb): sb for sb in vardict}
         solution_blocks = []
 
+        posdict = {}
+        posconst = self._get_position_constants()
+        for item in posconst:
+            posdict[symdict[item]] = vardict[symdict[item]]
+
+        print(posdict)
+
         print(self.boundary_conditions, '\n')
-        print(mp, '\n')
+        print(mp, en, '\n')
 
         def calculate_constant(cond: Item, constant_det: dict, constant_value: dict, p: Expr, k: Expr, constant_lit: dict):
             # sb = position of condition
@@ -769,11 +800,16 @@ class BeamProblem:
                 sb = cond[1]
             # isolate the constant
             sol = solve(Eq(sympify(cond[2], locals=symdict), p),k)[0]
-            constant_det[str(k)].append(latex_with_threshold(collapse_singularity_functions(Eq(k, sol).subs(x, sb), x, relations)))            
+            constant_det[str(k)].append(latex_with_threshold(collapse_singularity_functions(Eq(k, sol).subs(x, sb), x, relations)))  
+            expr = Eq(k, sol).subs(x, sb)
+            # substitute positions
+            for v in posdict:
+                expr = expr.subs(v, posdict[v])            
+            constant_det[str(k)].append(latex_with_threshold(collapse_singularity_functions(expr, x, relations)))
+            constant_lit[str(k)] = simplify(expr.rhs)
             # substitute known constants
             for const in constant_value:
-                sol = sol.subs(const, constant_value[const])
-            constant_lit[str(k)] = simplify(Eq(k, sol).subs(x, sb).rhs)                
+                sol = sol.subs(const, constant_value[const])            
             # evaluate
             if isinstance(sb, Expr):
                 sol = Eq(k, sol).subs(x, sb)
@@ -848,7 +884,7 @@ class BeamProblem:
                 final_eqs.append(latex_with_threshold(eq))
 
         # Normal
-        if len(self.normal_forces) > 0:
+        if len(self.normal_forces) > 0 and en['normal']:
             normal_block = {'name': 'Força Normal'}
             reactions = []
             # create load equation
@@ -990,7 +1026,7 @@ class BeamProblem:
             solution_blocks.append(normal_block)
 
         # Twisting
-        if len(self.twisting_moments) > 0:
+        if len(self.twisting_moments) > 0 and en['twisting']:
             twisting_block = {'name': 'Torção de Seções Circulares'}
             reactions = []
             # create load equation
@@ -1132,7 +1168,7 @@ class BeamProblem:
             solution_blocks.append(twisting_block)            
 
         # Shear and bending
-        if len(self.shear_forces) > 0 or len(self.bending_moments) > 0:
+        if len(self.shear_forces) > 0 or len(self.bending_moments) > 0 and en['shear']:
             shear_block = {'name': 'Flexão Pura'}
             reactions = []
             # create load equation

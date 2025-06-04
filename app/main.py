@@ -54,10 +54,13 @@ async def render(request: Request, session_id: str = Cookie(None, alias="session
 @app.get("/solve", response_class=HTMLResponse)
 async def solve(request: Request, session_id: str = Cookie(None, alias="session_id"), db: Session = Depends(get_db)):
     session = db.query(UserSession).where(UserSession.id == session_id).first()    
-    BP = BeamProblem(json.dumps(session.problem[0].parameters))     
-    result = BP.solve()
-    session.problem[0].parameters = BP.to_dict()
-    db.commit()    
+    BP = BeamProblem(json.dumps(session.problem[0].parameters))
+    try:     
+        result = BP.solve()
+        session.problem[0].parameters = BP.to_dict()
+        db.commit()
+    except:
+        result = []       
     return templates.TemplateResponse(
         request=request, name="solution.html", context={'result': result, 'len': len}
     )
@@ -120,7 +123,7 @@ async def edit_variable(variable: str, request: Request, session_id: str = Cooki
     session = db.query(UserSession).where(UserSession.id == session_id).first()    
     BP = BeamProblem(json.dumps(session.problem[0].parameters))
     return templates.TemplateResponse(
-        request=request, name="edit_variable.html", context={'variable':variable, 'value':BP.variables[variable]}
+        request=request, name="edit_variable.html", context={'variable':variable, 'value':BP.variables[variable], 'rep': format_label(variable)}
     )
 
 # Modal to add elements
