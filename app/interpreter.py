@@ -200,6 +200,10 @@ class BeamProblem:
                 if 'R_y_' in force['value'] and force['n'] < 0:
                     if self._ev(force['start']) == self._ev(self.points[point]):
                         force['value'] = f'R_y_{point}'
+            for force in self.normal_forces:
+                if 'R_x_' in force['value'] and force['n'] < 0:
+                    if self._ev(force['start']) == self._ev(self.points[point]):
+                        force['value'] = f'R_x_{point}'                        
 
     def _assert_link_consistency(self, link_type: str, position: float) -> bool:
         """
@@ -320,16 +324,61 @@ class BeamProblem:
             if self._ev(position) > self.beam_size:
                 position = 'L'
             # creates point of interest
-            if link_type in ('fixed_support', 'mobile_support') and (0 < self._ev(position) < self.beam_size):
+            if (0 < self._ev(position) < self.beam_size):
                 link_point = self._get_and_add_point(position)
-                self.add_shear_force(f'R_y_{link_point}', 0, position, position, -1, True, True)
-                self._enforce_reaction_consistency()
-            elif (0 < self._ev(position) < self.beam_size):
-                link_point = self._get_and_add_point(position)
-                self._enforce_reaction_consistency()
+                self._enforce_reaction_consistency()            
             self.links.append({link_type: position})
+            # add reactions
+            self._add_reactions()
             return True
         return False
+
+    def _add_reactions(self):
+        for link in self.links:
+            link_type = list(link.keys())[0]
+            position = link[link_type]
+            # if link in problem domain, create reaction
+            if (0 < self._ev(position) < self.beam_size):
+                link_point = 'A'
+                for point in self.points:
+                    if self._ev(self.points[point]) == self._ev(position):
+                        link_point = point
+                        break            
+                shear = False
+                normal = False
+                theta = False
+                deflect = False
+                for force in self.shear_forces:
+                    # if reaction already exists
+                    if 'R_y_' in force['value'] and force['n'] < 0 and link_type in ('fixed_support', 'mobile_support'):
+                        if self._ev(force['start']) == self._ev(position):
+                            shear = True
+                            break
+                for force in self.normal_forces:
+                    # if reaction already exists
+                    if 'R_x_' in force['value'] and force['n'] < 0 and link_type == 'fixed_support':
+                        if self._ev(force['start']) == self._ev(position):
+                            normal = True
+                            break
+                for force in self.bending_moments:
+                    # if reaction already exists
+                    if 'theta_Z_' in force['value'] and force['n'] < 0 and link_type == 'hinge':
+                        if self._ev(force['start']) == self._ev(position):
+                            theta = True
+                            break
+                    if 'v_' in force['value'] and force['n'] < 0 and link_type == 'roller':
+                        if self._ev(force['start']) == self._ev(position):
+                            deflect = True
+                            break
+                if len(self.shear_forces) > 0 and link_type in ('fixed_support', 'mobile_support') and not shear:
+                    self.add_shear_force(f'R_y_{link_point}', 0, position, position, -1, True, True)
+                if len(self.normal_forces) > 0 and link_type == 'fixed_support' and not normal:
+                    self.add_normal_force(f'R_x_{link_point}', 0, position, position, -1, True, True)
+                if (len(self.shear_forces) > 0 or len(self.bending_moments) > 0) and link_type == 'hinge' and not theta:
+                    self.add_bending_moment(f'theta_Z_{link_point}', 0, position, position, -3, True, True)
+                if (len(self.shear_forces) > 0 or len(self.bending_moments) > 0) and link_type == 'roller' and not deflect:
+                    self.add_bending_moment(f'v_{link_point}', 0, position, position, -4, True, True)                    
+        self._enforce_reaction_consistency()
 
     def _create_load(self, value: str, value_min: str, start: str, stop: str, n: int, pos: bool = True, reaction: bool = False) -> dict:
         """
@@ -413,7 +462,8 @@ class BeamProblem:
         if 'I_zz' not in self.variables or 'E' not in self.variables:
             self.add_variable('I_zz',1)
             self.add_variable('E',200 * 1e9)        
-        self.shear_forces.append(self._create_load(value, value_min, start, stop, n, pos, reaction))  
+        self.shear_forces.append(self._create_load(value, value_min, start, stop, n, pos, reaction))
+        self._add_reactions()
 
     def add_normal_force(self, value: str, value_min: str, start: str, stop: str, n: int, pos: bool = True, reaction: bool = False):
         """
@@ -429,7 +479,8 @@ class BeamProblem:
         if 'A' not in self.variables or 'E' not in self.variables:
             self.add_variable('A',1)
             self.add_variable('E',200 * 1e9)        
-        self.normal_forces.append(self._create_load(value, value_min, start, stop, n, pos, reaction))  
+        self.normal_forces.append(self._create_load(value, value_min, start, stop, n, pos, reaction))
+        self._add_reactions()  
 
     def add_twisting_moment(self, value: str, value_min: str, start: str, stop: str, n: int, pos: bool = True, reaction: bool = False):
         """
@@ -445,7 +496,8 @@ class BeamProblem:
         if 'J_p' not in self.variables or 'G' not in self.variables:
             self.add_variable('J_p',1)
             self.add_variable('G', 76 * 1e9)        
-        self.twisting_moments.append(self._create_load(value, value_min, start, stop, n, pos, reaction))  
+        self.twisting_moments.append(self._create_load(value, value_min, start, stop, n, pos, reaction))
+        self._add_reactions()  
 
     def add_bending_moment(self, value: str, value_min: str, start: str, stop: str, n: int, pos: bool = True, reaction: bool = False):
         """
@@ -462,6 +514,7 @@ class BeamProblem:
             self.add_variable('I_zz',1)
             self.add_variable('E',200 * 1e9)                
         self.bending_moments.append(self._create_load(value, value_min, start, stop, n, pos, reaction))
+        self._add_reactions()
     
     def _get_load_equation(self, force: dict):
         x = symbols('x')
@@ -476,6 +529,8 @@ class BeamProblem:
         if not force['pos']:
             p = -p
             q = -q
+        if force['n'] < -2:
+            p = self._s('E*I_zz') * p
         x_ = self._s(f"({force['stop']})-({force['start']})")
         y_ = (p-q)
         r = y_/x_
@@ -685,14 +740,18 @@ class BeamProblem:
             if link_type == 'mobile_support':
                 if len(self.shear_forces) > 0 or len(self.bending_moments) > 0:
                     # Shear and bending
-                    if self._ev(position) == 0 or self._ev(position) == self.beam_size:
+                    if 0 not in mapped_points['M_z'] and self._ev(position) == 0:
                         add_condition('M_z', position, 0)
+                    if 'L' not in mapped_points['M_z'] and self._ev(position) == self.beam_size:
+                        add_condition('M_z', position, 0)                        
                     add_condition('v', position, 0)
             if link_type == 'fixed_support':
                 if len(self.shear_forces) > 0 or len(self.bending_moments) > 0:
                     # Shear and bending
-                    if self._ev(position) == 0 or self._ev(position) == self.beam_size:
+                    if 0 not in mapped_points['M_z'] and self._ev(position) == 0:
                         add_condition('M_z', position, 0)
+                    if 'L' not in mapped_points['M_z'] and self._ev(position) == self.beam_size:
+                        add_condition('M_z', position, 0)    
                     add_condition('v', position, 0)
                 if len(self.normal_forces) > 0:
                     # Normal 
@@ -741,7 +800,7 @@ class BeamProblem:
         self.boundary_conditions.sort(
             key=lambda item: (
                 # first key: False (0) if item[1]==0, True (1) otherwise
-                item[1] != 0,
+                item[1] != 0,                                
                 # second key: the index in our priority list, or a large default if not found
                 priority_index.get(item[0], len(priority))
             )
@@ -787,11 +846,6 @@ class BeamProblem:
         for item in posconst:
             posdict[symdict[item]] = vardict[symdict[item]]
 
-        print(posdict)
-
-        print(self.boundary_conditions, '\n')
-        print(mp, en, '\n')
-
         def calculate_constant(cond: Item, constant_det: dict, constant_value: dict, p: Expr, k: Expr, constant_lit: dict):
             # sb = position of condition
             if isinstance(cond[1], str):
@@ -799,6 +853,7 @@ class BeamProblem:
             else:
                 sb = cond[1]
             # isolate the constant
+            print(k, cond, p)
             sol = solve(Eq(sympify(cond[2], locals=symdict), p),k)[0]
             constant_det[str(k)].append(latex_with_threshold(collapse_singularity_functions(Eq(k, sol).subs(x, sb), x, relations)))  
             expr = Eq(k, sol).subs(x, sb)
@@ -858,30 +913,33 @@ class BeamProblem:
                             constant_det[k].append(final_constant_expression)            
 
         def plot_equations(plots: dict, final_eqs: list, constants: list, constant_value: dict, constant_lit: dict):
-            for i in range(len(final_eqs)):
-                x_axis = np.linspace(0, self.variables['L'],1000)
-                eq = final_eqs[i]
-                eqlit = copy(final_eqs[i])
-                for k in constants:
-                    eq = eq.subs(k,constant_value[str(k)])
-                    eqlit = eqlit.subs(k, constant_lit[str(k)])
-                for r in reactions:
-                    eq = eq.subs(r,constant_value[str(r)])
-                    eqlit = eqlit.subs(k, constant_lit[str(r)])
-                eqlit = collapse_singularity_functions(eqlit, x, relations)
-                eq = eq.evalf(subs=self._remove_protected_symbols(vardict))
-                f = lambdify(x, eq.rhs, modules=[mapping, 'numpy'])
-                y_axis = f(x_axis)
-                if isinstance(y_axis, float):
-                    y_axis = np.zeros(len(x_axis)) + y_axis
-                title = format_label(str(eq.lhs)).replace('*','')
-                plots[title] = fig_to_rotated_img(create_filled_line_figure(
-                    x_axis,
-                    y_axis,
-                    title
-                ))
-                final_eqs[i] = latex_with_threshold(eqlit)
-                final_eqs.append(latex_with_threshold(eq))
+            try:
+                for i in range(len(final_eqs)):
+                    x_axis = np.linspace(0, self.variables['L'],1000)
+                    eq = final_eqs[i]
+                    eqlit = copy(final_eqs[i])
+                    for k in constants:
+                        eq = eq.subs(k,constant_value[str(k)])
+                        eqlit = eqlit.subs(k, constant_lit[str(k)])
+                    for r in reactions:
+                        eq = eq.subs(r,constant_value[str(r)])
+                        eqlit = eqlit.subs(k, constant_lit[str(r)])
+                    eqlit = collapse_singularity_functions(eqlit, x, relations)
+                    eq = eq.evalf(subs=self._remove_protected_symbols(vardict))
+                    f = lambdify(x, eq.rhs, modules=[mapping, 'numpy'])
+                    y_axis = f(x_axis)
+                    if isinstance(y_axis, float):
+                        y_axis = np.zeros(len(x_axis)) + y_axis
+                    title = format_label(str(eq.lhs)).replace('*','')
+                    plots[title] = fig_to_rotated_img(create_filled_line_figure(
+                        x_axis,
+                        y_axis,
+                        title
+                    ))
+                    final_eqs[i] = latex_with_threshold(eqlit)
+                    final_eqs.append(latex_with_threshold(eq))
+            except Exception as e:
+                print(e)
 
         # Normal
         if len(self.normal_forces) > 0 and en['normal']:
@@ -1271,6 +1329,7 @@ class BeamProblem:
                                 if item not in constant_det and item != ogk:                                
                                     k = c[:3][::-1][i]
                                     break
+                        print(constant_strings[:3][::-1])
                         # if constants have been determined, find out reactions
                         if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings[:3]) - 1:
                             for i, item in enumerate(reaction_strings):
@@ -1537,15 +1596,16 @@ class BeamProblem:
 
         # Add bending moments
         for moment in self.bending_moments:
-            if ev(moment['start']) < self.beam_size:
-                if moment['pos']:
-                    self.fig = add_semicircle_arrow(self.fig, ev(moment['start']), HEIGHT/2, orientation='clockwise', label=format_subs(moment['value']), radius=0.75*HEIGHT, color='rgba(255,140,0,1)')
+            if moment['n'] > -3:
+                if ev(moment['start']) < self.beam_size:
+                    if moment['pos']:
+                        self.fig = add_semicircle_arrow(self.fig, ev(moment['start']), HEIGHT/2, orientation='clockwise', label=format_subs(moment['value']), radius=0.75*HEIGHT, color='rgba(255,140,0,1)')
+                    else:
+                        self.fig = add_semicircle_arrow(self.fig, ev(moment['start']), HEIGHT/2, label=format_subs(moment['value']), radius=0.75*HEIGHT, color='rgba(255,140,0,1)')
                 else:
-                    self.fig = add_semicircle_arrow(self.fig, ev(moment['start']), HEIGHT/2, label=format_subs(moment['value']), radius=0.75*HEIGHT, color='rgba(255,140,0,1)')
-            else:
-                if moment['pos']:
-                    self.fig = add_semicircle_arrow(self.fig, ev(moment['start']), HEIGHT/2, label=format_subs(moment['value']), radius=0.75*HEIGHT, color='rgba(255,140,0,1)')                 
-                else:
-                    self.fig = add_semicircle_arrow(self.fig, ev(moment['start']), HEIGHT/2, orientation='clockwise', label=format_subs(moment['value']), radius=0.75*HEIGHT, color='rgba(255,140,0,1)', start_angle=np.radians(90))
+                    if moment['pos']:
+                        self.fig = add_semicircle_arrow(self.fig, ev(moment['start']), HEIGHT/2, label=format_subs(moment['value']), radius=0.75*HEIGHT, color='rgba(255,140,0,1)')                 
+                    else:
+                        self.fig = add_semicircle_arrow(self.fig, ev(moment['start']), HEIGHT/2, orientation='clockwise', label=format_subs(moment['value']), radius=0.75*HEIGHT, color='rgba(255,140,0,1)', start_angle=np.radians(90))
 
         return self.fig

@@ -8,7 +8,7 @@ from .interpreter import *
 from .models import *
 from .utils import *
 from .graph import *
-import logging
+import traceback
 import uuid
 
 app = FastAPI()
@@ -59,7 +59,8 @@ async def solve(request: Request, session_id: str = Cookie(None, alias="session_
         result = BP.solve()
         session.problem[0].parameters = BP.to_dict()
         db.commit()
-    except:
+    except Exception:
+        print(f'\n{traceback.format_exc()}\n')
         result = []       
     return templates.TemplateResponse(
         request=request, name="solution.html", context={'result': result, 'len': len}
