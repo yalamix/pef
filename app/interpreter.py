@@ -841,10 +841,89 @@ class BeamProblem:
         symdict = {str(sb): sb for sb in vardict}
         solution_blocks = []
 
+        shear = ['v', 'theta_Z', 'M_z', 'V_y']
+        normal = ['u', 'N_x',]
+        twisting = ['phi', 'M_x']
+
+        priority = ['v', 'theta_Z', 'M_z', 'V_y', 'u', 'N_x', 'phi', 'M_x']
+
+        # Build a quick lookup dict so that each name maps to its index (0..7)
+        priority_index = {name: i for i, name in enumerate(priority)}
+
         posdict = {}
         posconst = self._get_position_constants()
         for item in posconst:
             posdict[symdict[item]] = vardict[symdict[item]]
+        
+        def filter_conditions(conditions: List[Item], condtype: str = 'shear') -> List[Item]:
+            conds = []
+            if condtype == 'shear':
+                for cond in conditions:
+                    if cond[0] in shear:
+                        conds.append(cond)
+                return conds
+            if condtype == 'normal':
+                for cond in conditions:
+                    if cond[0] in normal:
+                        conds.append(cond)
+                return conds
+            if condtype == 'twisting':
+                for cond in conditions:
+                    if cond[0] in twisting:
+                        conds.append(cond)
+                return conds                        
+
+        def determine_constants_conditions(conditions: List[Item], constants: list, reactions: list, final_eqs: list, condtype: str = 'shear'):
+            matrix = np.zeros((len(conditions), len(constants) + len(reactions)),int)
+            unknowns = constants[::-1] + reactions
+            eqs = final_eqs[::-1]
+            sums = []
+            combine = []
+            # sums.sort(key=lambda x: x[1])
+            if condtype == 'shear':
+                eqtypes = shear
+            if condtype == 'normal':
+                eqtypes = shear
+            if condtype == 'twisting':
+                eqtypes = shear                                
+            for i, cond in enumerate(conditions):
+                if isinstance(cond[1], str):
+                    sb = sympify(cond[1], locals=symdict)
+                else:
+                    sb = cond[1]                
+                for j, k in enumerate(unknowns):
+                    # check if constant exists in the equation after sub x
+                    if k in eqs[eqtypes.index(cond[0])].subs(x, sb).free_symbols:
+                        if j < len(constants):
+                            matrix[i, j] = len(constants) + 1 - j
+                            if eqtypes.index(cond[0]) == j and cond[1] == 0:
+                                matrix[i, j] = 0
+                        else:
+                            matrix[i, j] = 1
+                    else:
+                        matrix[i, j] = 100
+                sums.append([i, np.sum(matrix[i, :])])                
+            sums.sort(key=lambda x: x[1])
+            print(matrix, '\n')
+            print(sums, '\n')
+            for item in sums:
+                smallest = list(matrix[item[0], :]).index(np.min(matrix[item[0], :]))
+                combine.append([conditions[item[0]], unknowns[smallest]])
+                matrix[:, smallest] = 100
+                print(conditions[item[0]], smallest, unknowns[smallest])
+                print(matrix, '\n')
+            combine.sort(
+                key=lambda item: (
+                    # first key: False (0) if item[1]==0, True (1) otherwise
+                    item[0][1] != 0,                                
+                    # second key: the index in our priority list, or a large default if not found
+                    priority_index.get(item[0][0], len(priority))
+                )  
+            )          
+            for thing in combine:
+                print(thing)
+            print()
+            return combine
 
         def calculate_constant(cond: Item, constant_det: dict, constant_value: dict, p: Expr, k: Expr, constant_lit: dict):
             # sb = position of condition
@@ -853,7 +932,7 @@ class BeamProblem:
             else:
                 sb = cond[1]
             # isolate the constant
-            print(k, cond, p)
+            print(cond, k, p)
             sol = solve(Eq(sympify(cond[2], locals=symdict), p),k)[0]
             constant_det[str(k)].append(latex_with_threshold(collapse_singularity_functions(Eq(k, sol).subs(x, sb), x, relations)))  
             expr = Eq(k, sol).subs(x, sb)
@@ -924,10 +1003,17 @@ class BeamProblem:
                     for r in reactions:
                         eq = eq.subs(r,constant_value[str(r)])
                         eqlit = eqlit.subs(k, constant_lit[str(r)])
-                    eqlit = collapse_singularity_functions(eqlit, x, relations)
+                    eqlit = collapse_singularity_functions(eqlit, x, relations)                    
                     eq = eq.evalf(subs=self._remove_protected_symbols(vardict))
-                    f = lambdify(x, eq.rhs, modules=[mapping, 'numpy'])
-                    y_axis = f(x_axis)
+                    # if elasticy modulus or moment of inertia in equation, isolate the function
+                    for item in vardict:
+                        if str(item) in self.protected_symbols:                            
+                            if item in eq.rhs.free_symbols:
+                                eq = eq.evalf(subs=vardict)
+                                eq = Eq(list(eq.lhs.atoms(Function))[0], solve(eq,list(eq.lhs.atoms(Function))[0])[0])
+                                break                            
+                    func = lambdify(x, eq.rhs, modules=[mapping, 'numpy'])                    
+                    y_axis = func(x_axis)                    
                     if isinstance(y_axis, float):
                         y_axis = np.zeros(len(x_axis)) + y_axis
                     title = format_label(str(eq.lhs)).replace('*','')
@@ -935,7 +1021,7 @@ class BeamProblem:
                         x_axis,
                         y_axis,
                         title
-                    ))
+                    ))                    
                     final_eqs[i] = latex_with_threshold(eqlit)
                     final_eqs.append(latex_with_threshold(eq))
             except Exception as e:
@@ -1250,22 +1336,22 @@ class BeamProblem:
                 p1 = integrate(p, x) + c[0] # first integration
                 ps.append(p1)
                 steps.append(latex_with_threshold(Eq(Eq(s['I_zz']*s['E'] * Derivative(f['v'](x),(x,3)),f['V_y'](x)), p1,evaluate=False)))
-                final_eqs.append(Eq(f['V_y'](x), p1, evaluate=False))
+                final_eqs.append(Eq(f['V_y'](x), remove_negative_singularity_terms(p1), evaluate=False))
                 c.append(Symbol('c_2')) # second constant 
                 p2 = integrate(p1, x) + c[1] # second integration
                 ps.append(p2)
                 steps.append(latex_with_threshold(Eq(Eq(s['I_zz']*s['E'] * Derivative(f['v'](x),(x,2)),f['M_z'](x)), p2,evaluate=False)))
-                final_eqs.append(Eq(f['M_z'](x), p2, evaluate=False))
+                final_eqs.append(Eq(f['M_z'](x), remove_negative_singularity_terms(p2), evaluate=False))
                 c.append(Symbol('c_3')) # third constant 
                 p3 = integrate(p2, x) + c[2] # third integration
                 ps.append(p3)
                 steps.append(latex_with_threshold(Eq(Eq(s['I_zz']*s['E'] * Derivative(f['v'](x),(x,1)),s['I_zz']*s['E'] * f['theta_Z'](x)), p3,evaluate=False)))
-                final_eqs.append(Eq(s['I_zz']*s['E'] * f['theta_Z'](x), p3, evaluate=False))
+                final_eqs.append(Eq(s['I_zz']*s['E'] * f['theta_Z'](x), remove_negative_singularity_terms(p3), evaluate=False))
                 c.append(Symbol('c_4')) # fourth constant 
                 p4 = integrate(p3, x) + c[3] # fourth integration
                 ps.append(p4)
                 steps.append(latex_with_threshold(Eq(s['I_zz']*s['E'] * f['v'](x), p4,evaluate=False)))
-                final_eqs.append(Eq(s['I_zz']*s['E'] * f['v'](x), p4, evaluate=False))                                   
+                final_eqs.append(Eq(s['I_zz']*s['E'] * f['v'](x), remove_negative_singularity_terms(p4), evaluate=False))                                   
                 shear_block['integration_steps'] = steps
                 # find out constants
                 constant_det = {}
@@ -1274,23 +1360,12 @@ class BeamProblem:
                 total_unknowns = len(c) + len(reactions)
                 constant_strings = [str(g) for g in c]
                 reaction_strings = [str(g) for g in reactions]
-                for cond in self.boundary_conditions:
+                ps = [remove_negative_singularity_terms(item) for item in ps]
+                condis = filter_conditions(self.boundary_conditions)
+                combined = determine_constants_conditions(condis, c, reactions, ps)
+                for cond, k in combined:
                     if cond[0] == 'V_y':
-                        k = c[0]
-                        p = ps[0]
-                        ogk = str(k)
-                        # check if constant has already been determined, if true then get next one
-                        if ogk in constant_det:
-                            for i, item in enumerate(constant_strings[:1][::-1]):
-                                if item not in constant_det and item != ogk:                                
-                                    k = c[:1][::-1][i]
-                                    break
-                        # if constants have been determined, find out reactions
-                        if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings[:1]) - 1:
-                            for i, item in enumerate(reaction_strings):
-                                if item not in constant_det:
-                                    k = reactions[i]
-                                    break                                  
+                        p = ps[0]                              
                         constant_det[str(k)] = []
                         # V_y(position) = value = first integration of q(x)
                         constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
@@ -1298,21 +1373,7 @@ class BeamProblem:
                         if len(constant_det.keys()) == total_unknowns:
                             break
                     if cond[0] == 'M_z':
-                        k = c[1]
-                        p = ps[1]
-                        ogk = str(k)
-                        # check if constant has already been determined, if true then get next one
-                        if ogk in constant_det:
-                            for i, item in enumerate(constant_strings[:2][::-1]):                                
-                                if item not in constant_det and item != ogk:                                
-                                    k = c[:2][::-1][i]
-                                    break   
-                        # if constants have been determined, find out reactions
-                        if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings[:2]) - 1:
-                            for i, item in enumerate(reaction_strings):
-                                if item not in constant_det:
-                                    k = reactions[i]
-                                    break                     
+                        p = ps[1]               
                         constant_det[str(k)] = []
                         # M_z(position) = value = second integration of q(x)
                         constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
@@ -1320,22 +1381,7 @@ class BeamProblem:
                         if len(constant_det.keys()) == total_unknowns:
                             break  
                     if cond[0] == 'theta_Z':
-                        k = c[2]
-                        p = ps[2]
-                        ogk = str(k)
-                        # check if constant has already been determined, if true then get next one
-                        if ogk in constant_det:
-                            for i, item in enumerate(constant_strings[:3][::-1]):
-                                if item not in constant_det and item != ogk:                                
-                                    k = c[:3][::-1][i]
-                                    break
-                        print(constant_strings[:3][::-1])
-                        # if constants have been determined, find out reactions
-                        if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings[:3]) - 1:
-                            for i, item in enumerate(reaction_strings):
-                                if item not in constant_det:
-                                    k = reactions[i]
-                                    break                  
+                        p = ps[2]               
                         constant_det[str(k)] = []
                         # theta_Z(position) = value = third integration of q(x)
                         constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
@@ -1343,21 +1389,7 @@ class BeamProblem:
                         if len(constant_det.keys()) == total_unknowns:
                             break
                     if cond[0] == 'v':
-                        k = c[3]
-                        p = ps[3]
-                        ogk = str(k)
-                        # check if constant has already been determined, if true then get next one
-                        if ogk in constant_det:
-                            for i, item in enumerate(constant_strings[::-1]):                                
-                                if item not in constant_det and item != ogk:                                
-                                    k = c[::-1][i]
-                                    break
-                        # if constants have been determined, find out reactions
-                        if str(k) in constant_det and constant_strings.index(str(k)) == len(constant_strings) - 1:
-                            for i, item in enumerate(reaction_strings):
-                                if item not in constant_det:
-                                    k = reactions[i]
-                                    break                         
+                        p = ps[3]                  
                         constant_det[str(k)] = []
                         # v(position) = value = fourth integration of q(x)
                         constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
@@ -1448,7 +1480,6 @@ class BeamProblem:
                 shear_block['plots'] = plots                          
 
             solution_blocks.append(shear_block)
-
 
         return solution_blocks
 
