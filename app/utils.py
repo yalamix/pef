@@ -204,14 +204,14 @@ Item = List[Union[str, float, int]]
 def add_item(collection: List[Item], new_item: Item) -> bool:
     """
     Add `new_item` to `collection` if there is no existing item in `collection`
-    whose first three elements match new_item's first three elements.
+    whose first two elements match new_item's first two elements.
     
     Returns True if new_item was added, False otherwise.
     """
-    # Compare only the first three elements
-    key_new = tuple(new_item[:3])
+    # Compare only the first two elements
+    key_new = tuple(new_item[:2])
     for item in collection:
-        if tuple(item[:3]) == key_new:
+        if tuple(item[:2]) == key_new:
             # Already present (regardless of last element), do not add
             return False
     collection.append(new_item)

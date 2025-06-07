@@ -1,0 +1,53 @@
+{% extends "modal.html" %}
+{% block content %}
+<h3 class="text-base font-semibold text-gray-900" id="modal-title">Adicionar condição de contorno ou restrição</h3>
+<form class="mt-4" hx-post="/condition" hx-swap="innerHTML settle:3s" hx-target="#toast">
+  <div class="mt-4">
+    <label for="condition_type" class="block text-sm/6 font-medium text-gray-900">Função</label>
+    <div class="mt-2">
+      <div class="flex items-center rounded-md bg-white pl-3 outline-1 -outline-offset-1 outline-gray-300 has-[input:focus-within]:outline-2 has-[input:focus-within]:-outline-offset-2 has-[input:focus-within]:outline-indigo-600">        
+        <select id="condition_type" name="condition_type" _="
+        on change
+            put me.options[me.selectedIndex].text + ' =' into #condition_value_label
+        " class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 text-gray-900">
+            <option value="N_x">Nx(x)</option>
+            <option value="u">u(x)</option>
+            <option value="M_x">Mx(x)</option>
+            <option value="phi">φ(x)</option>
+            <option value="V_y">Vy(x)</option>
+            <option value="M_z">Mz(x)</option> 
+            <option value="theta_Z">θz(x)</option>
+            <option value="v">v(x)</option>                         
+        </select>
+      </div>
+    </div>
+  </div>
+  <div class="mt-4">
+      <label for="condition_position" class="block text-sm/6 font-medium text-gray-900">x =</label>
+      <div class="mt-2">
+        <div class="flex items-center rounded-md bg-white pl-3 outline-1 -outline-offset-1 outline-gray-300 has-[input:focus-within]:outline-2 has-[input:focus-within]:-outline-offset-2 has-[input:focus-within]:outline-indigo-600">        
+          <input type="text" _="
+          on input
+            put #condition_type.options[#condition_type.selectedIndex].text.replace('(x)','('+my.value+')') + ' =' into #condition_value_label
+          "
+          name="condition_position" value="0" id="condition_position" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 text-gray-900" placeholder="0">
+        </div>
+      </div>
+  </div> 
+  <div class="mt-4">
+      <label id="condition_value_label" for="condition_value" class="block text-sm/6 font-medium text-gray-900">Valor</label>
+      <div class="mt-2">
+        <div class="flex items-center rounded-md bg-white pl-3 outline-1 -outline-offset-1 outline-gray-300 has-[input:focus-within]:outline-2 has-[input:focus-within]:-outline-offset-2 has-[input:focus-within]:outline-indigo-600">        
+          <input type="text" name="condition_value" value="0" id="condition_value" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 text-gray-900" placeholder="0">
+        </div>
+      </div>
+  </div>    
+  <div class="px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+    <button id="closeModal" type="submit"
+      class="inline-flex w-full justify-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-500 sm:ml-3 sm:w-auto">Adicionar</button>
+    <button id="cancelModal" type="button" _="on click trigger closeModal"
+      class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 shadow-xs ring-gray-300 ring-inset hover:bg-gray-50 sm:mt-0 sm:w-auto">Cancelar</button>
+  </div>
+  <span id="toast"></span>
+</form>
+{% endblock %}

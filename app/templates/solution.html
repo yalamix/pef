@@ -45,7 +45,7 @@
     {% else %}
     <h1 class="text-xl text-center font-semibold text-gray-700 uppercase tracking-wider">Calculadora de Resistência dos Materiais</h1>
     <p class="p-1 rounded-full">
-        <p>Olá! Para usar, basta utilizar a barra lateral para adicionar elementos à viga, como forças e vínculos. Você também é capaz de definir variáveis/constantes e seus respectivos valores.</p>
+        <p>Olá! Para usar, basta utilizar a barra lateral para adicionar elementos à viga, como forças e vínculos. Você também é capaz de definir variáveis/constantes e seus respectivos valores.</p>        
         <p>É possível colocar a posição de objetos e valor de forças e momentos em termos analíticos, basta colocar na linguagem Python.</p>
         <p>Por exemplo, é possível colocar um vínculo na posição 2L<sub>1</sub> + L<sub>2</sub>, basta digitar 2 * L_1 + L_2.</p>
         <p>O underline serve para indicar subscritos, e o resto das operações é igual a manipular variáveis no Python.</p>
@@ -53,6 +53,11 @@
         <p>Não é necessário colocar o sinal dos valores das forças. Utilize a opção na janelinha.</p>
         <p>Lembrando que nas pontas da vigas segue-se a convenção de Resmat e no meio segue-se a direção dos eixos.</p>
         <p>Preste atenção também nas unidades usadas pelo enunciado do problema, o programa calcula tudo numericamente. Conversões devem ser feitas antes ou depois da solução.</p>
+        <p>Recomendo converter todas as unidades para o Sistema Internacional (metros, Newtons, etc) se você tem unidades mistas no enunciado.</p>
+        <p>O programa calcula as condições de contorno automaticamente. Adicione somente restrições extras que o enunciado definiu.</p>
+        <p>Se a condição que você quer criar já existe, por exemplo, já há v(L/2) = 0 mas você quer adicionar v(L/2) = 2, não se preocupe.</p>
+        <p>Condições adicionadas pelo usuário são priorizadas. Sua condição irá sobrescrever a existente.</p>
+        <p>Passos:</p>
         <p>1. Defina o tamanho da viga (variável L)</p>
         <p>2. Crie os vínculos</p>
         <p>3. Crie os esforços</p>

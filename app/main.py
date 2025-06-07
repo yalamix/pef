@@ -165,6 +165,13 @@ async def add_twisting(request: Request):
         request=request, name="add_force.html", context={'force': 'momento torsor', 'route': '/twisting'}
     )
 
+@app.get("/add_condition", response_class=HTMLResponse)
+async def add_condition(request: Request):
+    return templates.TemplateResponse(
+        request=request, name="add_condition.html",
+    )
+
+
 # Post requests to add elements
 
 @app.post("/link")
@@ -327,6 +334,28 @@ async def twisting(
     db.commit()    
     context = {
         'msg': f'Adicionada momento torsor {"positivo" if pos else "negativo"}. Valor: {force_value}',
+        'success': True
+    }     
+    return templates.TemplateResponse(
+        request=request, name="alert.html", context=context, headers={'HX-Trigger':'renderCanvas'}
+    )
+
+@app.post("/condition")
+async def condition(
+        request: Request,
+        condition_type: str = Form(...),
+        condition_position: str = Form(...),
+        condition_value: str = Form(...),
+        session_id: str = Cookie(None, alias="session_id"), 
+        db: Session = Depends(get_db)        
+    ):
+    session = db.query(UserSession).where(UserSession.id == session_id).first()
+    BP = BeamProblem(json.dumps(session.problem[0].parameters))             
+    BP.add_custom_condition(condition_type, condition_position, condition_value)
+    session.problem[0].parameters = BP.to_dict()
+    db.commit()
+    context = {
+        'msg': f'Adicionada condição de contorno {format_label(condition_type)}({condition_position}) = {condition_value}',
         'success': True
     }     
     return templates.TemplateResponse(

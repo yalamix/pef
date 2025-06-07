@@ -661,6 +661,18 @@ class BeamProblem:
                 return True            
         return False
 
+    def add_custom_condition(self, condition_type: str, condition_position: str, condition_value: str):
+        """
+        """
+        remove_zero_flags(self.boundary_conditions)
+        if condition_position not in self.variables:
+            try:
+                condition_position = float(condition_position)
+            except:     
+                condition_position = self._update_variables(condition_position)
+        add_item(self.boundary_conditions, [condition_type, condition_position, condition_value, 1])
+        self.calculate_boundary_conditions()
+
     def calculate_boundary_conditions(self):
         """
         """ 
