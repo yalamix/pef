@@ -370,7 +370,7 @@ class BeamProblem:
                         if self._ev(force['start']) == self._ev(position):
                             deflect = True
                             break
-                if len(self.shear_forces) > 0 and link_type in ('fixed_support', 'mobile_support') and not shear:
+                if (len(self.shear_forces) > 0 or len(self.bending_moments) > 0) and link_type in ('fixed_support', 'mobile_support') and not shear:
                     self.add_shear_force(f'R_y_{link_point}', 0, position, position, -1, True, True)
                 if len(self.normal_forces) > 0 and link_type == 'fixed_support' and not normal:
                     self.add_normal_force(f'R_x_{link_point}', 0, position, position, -1, True, True)
@@ -874,18 +874,25 @@ class BeamProblem:
                 return conds                        
 
         def determine_constants_conditions(conditions: List[Item], constants: list, reactions: list, final_eqs: list, condtype: str = 'shear'):
-            matrix = np.zeros((len(conditions), len(constants) + len(reactions)),int)
-            unknowns = constants[::-1] + reactions
-            eqs = final_eqs[::-1]
-            sums = []
-            combine = []
-            # sums.sort(key=lambda x: x[1])
             if condtype == 'shear':
                 eqtypes = shear
             if condtype == 'normal':
                 eqtypes = shear
             if condtype == 'twisting':
-                eqtypes = shear                                
+                eqtypes = shear                  
+            eqs = final_eqs[::-1]
+            unknowns = constants[::-1] + reactions
+            determined_constants = []
+            associated_conditions = []
+            for i, cond in enumerate(conditions[:len(constants)]):
+                if cond[1] == 0:
+                    determined_constants.append(unknowns[eqtypes.index(cond[0])])
+                    associated_conditions.append(cond)
+            for cond, unknown in zip(associated_conditions, determined_constants):
+                conditions.remove(cond)
+                unknowns.remove(unknown)
+            matrix = np.zeros((len(conditions), len(unknowns)),int)                                        
+            # sums.sort(key=lambda x: x[1])                          
             for i, cond in enumerate(conditions):
                 if isinstance(cond[1], str):
                     sb = sympify(cond[1], locals=symdict)
@@ -894,24 +901,22 @@ class BeamProblem:
                 for j, k in enumerate(unknowns):
                     # check if constant exists in the equation after sub x
                     if k in eqs[eqtypes.index(cond[0])].subs(x, sb).free_symbols:
-                        if j < len(constants):
-                            matrix[i, j] = len(constants) + 1 - j
-                            if eqtypes.index(cond[0]) == j and cond[1] == 0:
-                                matrix[i, j] = 0
-                        else:
-                            matrix[i, j] = 1
+                        matrix[i, j] = 1
                     else:
-                        matrix[i, j] = 100
-                sums.append([i, np.sum(matrix[i, :])])                
+                        matrix[i, j] = 0
+            sums = [[j, np.sum(matrix[:,j])] for j in range(len(unknowns))]            
             sums.sort(key=lambda x: x[1])
             print(matrix, '\n')
             print(sums, '\n')
+            taken = []
             for item in sums:
-                smallest = list(matrix[item[0], :]).index(np.min(matrix[item[0], :]))
-                combine.append([conditions[item[0]], unknowns[smallest]])
-                matrix[:, smallest] = 100
-                print(conditions[item[0]], smallest, unknowns[smallest])
-                print(matrix, '\n')
+                for i in range(len(conditions)-1,-1,-1):
+                    if matrix[i, item[0]] == 1 and i not in taken:
+                        taken.append(i)
+                        break
+                determined_constants.append(unknowns[item[0]])
+                associated_conditions.append(conditions[i])
+            combine = list(zip(associated_conditions, determined_constants))
             combine.sort(
                 key=lambda item: (
                     # first key: False (0) if item[1]==0, True (1) otherwise
@@ -933,9 +938,11 @@ class BeamProblem:
                 sb = cond[1]
             # isolate the constant
             print(cond, k, p)
+            print()
             sol = solve(Eq(sympify(cond[2], locals=symdict), p),k)[0]
             constant_det[str(k)].append(latex_with_threshold(collapse_singularity_functions(Eq(k, sol).subs(x, sb), x, relations)))  
             expr = Eq(k, sol).subs(x, sb)
+            print('Expr:', expr)
             # substitute positions
             for v in posdict:
                 expr = expr.subs(v, posdict[v])            
@@ -955,6 +962,8 @@ class BeamProblem:
             for v in vardict:
                 if str(v) != str(sb):
                     sol = sol.subs(v, vardict[v], evaluate=False)
+            print(sol)
+            print()
             # isolate again if needed
             if k in sol.rhs.free_symbols:
                 sol = Eq(k, solve(sol, k)[0])
@@ -1381,7 +1390,7 @@ class BeamProblem:
                         if len(constant_det.keys()) == total_unknowns:
                             break  
                     if cond[0] == 'theta_Z':
-                        p = ps[2]               
+                        p = (1/(s['E']*s['I_zz'])) * ps[2]               
                         constant_det[str(k)] = []
                         # theta_Z(position) = value = third integration of q(x)
                         constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
@@ -1389,7 +1398,7 @@ class BeamProblem:
                         if len(constant_det.keys()) == total_unknowns:
                             break
                     if cond[0] == 'v':
-                        p = ps[3]                  
+                        p = (1/(s['E']*s['I_zz'])) * ps[3]                  
                         constant_det[str(k)] = []
                         # v(position) = value = fourth integration of q(x)
                         constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))

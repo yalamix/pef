@@ -84,6 +84,63 @@ class ThresholdLatexPrinter(LatexPrinter):
 
         return r'{\left\langle %s - %s \right\rangle}^{%s}' % (px, pa, pn)
 
+    def _print_Symbol(self, expr):
+        name = expr.name
+        parts = name.split('_')
+        base = parts[0]
+        subscripts = parts[1:]
+
+        # Mapping of Greek letter names to LaTeX commands
+        greek_letters = {
+            'alpha': r'\alpha',
+            'beta': r'\beta',
+            'gamma': r'\gamma',
+            'delta': r'\delta',
+            'epsilon': r'\epsilon',
+            'zeta': r'\zeta',
+            'eta': r'\eta',
+            'theta': r'\theta',
+            'iota': r'\iota',
+            'kappa': r'\kappa',
+            'lambda': r'\lambda',
+            'mu': r'\mu',
+            'nu': r'\nu',
+            'xi': r'\xi',
+            'omicron': r'o',
+            'pi': r'\pi',
+            'rho': r'\rho',
+            'sigma': r'\sigma',
+            'tau': r'\tau',
+            'upsilon': r'\upsilon',
+            'phi': r'\phi',
+            'chi': r'\chi',
+            'psi': r'\psi',
+            'omega': r'\omega',
+            'Gamma': r'\Gamma',
+            'Delta': r'\Delta',
+            'Theta': r'\Theta',
+            'Lambda': r'\Lambda',
+            'Xi': r'\Xi',
+            'Pi': r'\Pi',
+            'Sigma': r'\Sigma',
+            'Upsilon': r'\Upsilon',
+            'Phi': r'\Phi',
+            'Psi': r'\Psi',
+            'Omega': r'\Omega',
+        }
+
+        # Convert base to LaTeX if it's a Greek letter
+        base_latex = greek_letters.get(base, base)
+
+        # Construct nested subscripts
+        if subscripts:
+            subscript = subscripts[-1]
+            for s in reversed(subscripts[:-1]):
+                subscript = f"{s}_{{{subscript}}}"
+            return f"{base_latex}_{{{subscript}}}"
+        else:
+            return base_latex
+
 def remove_negative_singularity_terms(expr):
     """
     Removes terms containing SingularityFunction with negative exponents from the expression.
@@ -277,6 +334,7 @@ def format_label(text: str) -> str:
       if the subscript token is “pphi”, it becomes “p<sub>pphi</sub>” first,
       and only then we replace “phi” → “ϕ” inside that subscript.
     """
+    text = text.replace('{','').replace('}','')
 
     # 1) Fractions: replace a/b ⇒ <sup>a</sup>/<sub>b</sub>
     def _frac(match):
@@ -329,6 +387,7 @@ def format_label(text: str) -> str:
     return text
 
 def format_subs(label: str) -> str:
+    label = label.replace('{','').replace('}','')
     a = label.split('_')
     if len(a) > 1:
         total_subs = len(a) - 1
