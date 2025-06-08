@@ -47,10 +47,11 @@
     <p class="p-1 rounded-full">
         <p>Olá! Para usar, basta utilizar a barra lateral para adicionar elementos à viga, como forças e vínculos. Você também é capaz de definir variáveis/constantes e seus respectivos valores.</p>        
         <p>É possível colocar a posição de objetos e valor de forças e momentos em termos analíticos, basta colocar na linguagem Python.</p>
-        <p>Por exemplo, é possível colocar um vínculo na posição 2L<sub>1</sub> + L<sub>2</sub>, basta digitar 2 * L_1 + L_2.</p>
+        <p>Por exemplo, é possível colocar um vínculo na posição $$ {{latex(s('2 * L_1 + L_2'))}} $$ basta digitar 2 * L_1 + L_2.</p>
         <p>O underline serve para indicar subscritos, e o resto das operações é igual a manipular variáveis no Python.</p>
         <p>Não se preocupe em definir essas variáveis, o programa faz automaticamente e depois você pode alterar o seus valores.</p>
-        <p>Não é necessário colocar o sinal dos valores das forças. Utilize a opção na janelinha.</p>
+        <p>Variáveis obrigatoriamente devem ter valor numérico. Para usar notação científica, como por exemplo $$ {{ latex(s(float('1.356e-6'))) }} $$ digite o número + e + expoente, nesse caso seria 1.356e-6.</p>
+        <p>Não coloque o sinal dos valores das forças. Utilize a opção na janelinha.</p>
         <p>Lembrando que nas pontas da vigas segue-se a convenção de Resmat e no meio segue-se a direção dos eixos.</p>
         <p>Preste atenção também nas unidades usadas pelo enunciado do problema, o programa calcula tudo numericamente. Conversões devem ser feitas antes ou depois da solução.</p>
         <p>Recomendo converter todas as unidades para o Sistema Internacional (metros, Newtons, etc) se você tem unidades mistas no enunciado.</p>

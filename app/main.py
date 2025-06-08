@@ -63,7 +63,7 @@ async def solve(request: Request, session_id: str = Cookie(None, alias="session_
         print(f'\n{traceback.format_exc()}\n')
         result = []       
     return templates.TemplateResponse(
-        request=request, name="solution.html", context={'result': result, 'len': len}
+        request=request, name="solution.html", context={'result': result, 'len': len, 'latex': latex_with_threshold, 's': sympify, 'float': float}
     )
 
 @app.get("/get_variables", response_class=HTMLResponse)
@@ -124,6 +124,13 @@ async def converter_modal(request: Request, session_id: str = Cookie(None, alias
     session = db.query(UserSession).where(UserSession.id == session_id).first() 
     return templates.TemplateResponse(
         request=request, name="converter_modal.html", context={'msg': json.dumps(session.problem[0].parameters, indent=4)}
+    )
+
+@app.get("/guide", response_class=HTMLResponse)
+async def converter_modal(request: Request, session_id: str = Cookie(None, alias="session_id"), db: Session = Depends(get_db)):
+    session = db.query(UserSession).where(UserSession.id == session_id).first() 
+    return templates.TemplateResponse(
+        request=request, name="guide.html", context={'msg': json.dumps(session.problem[0].parameters, indent=4), 'len': len, 'latex': latex_with_threshold, 's': sympify, 'float': float}
     )
 
 @app.get("/reset")

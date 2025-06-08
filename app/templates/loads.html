@@ -25,7 +25,13 @@
 {% for load in bending_loads %}
       <div class="mt-3 space-y-2">
         <a href="#" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900 text-xs">
+          {% if 'theta' in load %}
+          <i class="ri-crosshair-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          {% elif 'v_' in load %}
+          <i class="ri-arrow-down-wide-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          {% else %}
           <i class="ri-arrow-go-back-line mr-3 text-gray-400 group-hover:text-gray-500 text-lg"></i>
+          {% endif %}
           $$ {{ load }} $$
         </a>
       </div>

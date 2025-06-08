@@ -1,0 +1,33 @@
+{% extends "modal.html" %}
+{% block content %}
+<h3 class="text-base font-semibold text-gray-900" id="modal-title">Guia</h3>
+<div class="mt-4 overflow-y-auto max-h-[50vh]">
+    <p class="p-1 rounded-full">
+        <p>Olá! Para usar, basta utilizar a barra lateral para adicionar elementos à viga, como forças e vínculos. Você também é capaz de definir variáveis/constantes e seus respectivos valores.</p>        
+        <p>É possível colocar a posição de objetos e valor de forças e momentos em termos analíticos, basta colocar na linguagem Python.</p>
+        <p>Por exemplo, é possível colocar um vínculo na posição $$ {{latex(s('2 * L_1 + L_2'))}} $$ basta digitar 2 * L_1 + L_2.</p>
+        <p>O underline serve para indicar subscritos, e o resto das operações é igual a manipular variáveis no Python.</p>
+        <p>Não se preocupe em definir essas variáveis, o programa faz automaticamente e depois você pode alterar o seus valores.</p>
+        <p>Variáveis obrigatoriamente devem ter valor numérico. Para usar notação científica, como por exemplo $$ {{ latex(s(float('1.356e-6'))) }} $$ digite o número + e + expoente, nesse caso seria 1.356e-6.</p>
+        <p>Não coloque o sinal dos valores das forças. Utilize a opção na janelinha.</p>
+        <p>Lembrando que nas pontas da vigas segue-se a convenção de Resmat e no meio segue-se a direção dos eixos.</p>
+        <p>Preste atenção também nas unidades usadas pelo enunciado do problema, o programa calcula tudo numericamente. Conversões devem ser feitas antes ou depois da solução.</p>
+        <p>Recomendo converter todas as unidades para o Sistema Internacional (metros, Newtons, etc) se você tem unidades mistas no enunciado.</p>
+        <p>O programa calcula as condições de contorno automaticamente. Adicione somente restrições extras que o enunciado definiu.</p>
+        <p>Se a condição que você quer criar já existe, por exemplo, já há v(L/2) = 0 mas você quer adicionar v(L/2) = 2, não se preocupe.</p>
+        <p>Condições adicionadas pelo usuário são priorizadas. Sua condição irá sobrescrever a existente.</p>
+        <p>Passos:</p>
+        <p>1. Defina o tamanho da viga (variável L)</p>
+        <p>2. Crie os vínculos</p>
+        <p>3. Crie os esforços</p>
+        <p>4. A solução será gerada automaticamente</p>        
+        <p>Bons cálculos!</p>
+    </p>
+</div>  
+<div class="px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+  <button id="closeModal" type="button" _="on click trigger closeModal"
+    class="inline-flex w-full justify-center rounded-md bg-yellow-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-yellow-500 sm:ml-3 sm:w-auto">OK</button>
+  <button id="cancelModal" type="button" _="on click trigger closeModal"
+    class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 shadow-xs ring-gray-300 ring-inset hover:bg-gray-50 sm:mt-0 sm:w-auto">Cancelar</button>
+</div>
+{% endblock %}

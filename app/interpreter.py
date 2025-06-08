@@ -203,7 +203,14 @@ class BeamProblem:
             for force in self.normal_forces:
                 if 'R_x_' in force['value'] and force['n'] < 0:
                     if self._ev(force['start']) == self._ev(self.points[point]):
-                        force['value'] = f'R_x_{point}'                        
+                        force['value'] = f'R_x_{point}'     
+            for force in self.bending_moments:
+                if 'theta_Z_' in force['value'] and force['n'] < 0:
+                    if self._ev(force['start']) == self._ev(self.points[point]):
+                        force['value'] = f'theta_Z_{point}' 
+                if 'v_' in force['value'] and force['n'] < 0:
+                    if self._ev(force['start']) == self._ev(self.points[point]):
+                        force['value'] = f'v_{point}'                                                                     
 
     def _assert_link_consistency(self, link_type: str, position: float) -> bool:
         """
