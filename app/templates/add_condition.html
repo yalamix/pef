@@ -8,12 +8,12 @@
       <div class="flex items-center rounded-md bg-white pl-3 outline-1 -outline-offset-1 outline-gray-300 has-[input:focus-within]:outline-2 has-[input:focus-within]:-outline-offset-2 has-[input:focus-within]:outline-indigo-600">        
         <select id="condition_type" name="condition_type" _="
         on change
-            put me.options[me.selectedIndex].text + ' =' into #condition_value_label
+            put me.options[me.selectedIndex].text.replace('(x)','('+#condition_position.value+')') + ' =' into #condition_value_label
         " class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 text-gray-900">
             <option value="N_x">Nx(x)</option>
             <option value="u">u(x)</option>
             <option value="M_x">Mx(x)</option>
-            <option value="phi">φ(x)</option>
+            <option value="phi">ϕ(x)</option>
             <option value="V_y">Vy(x)</option>
             <option value="M_z">Mz(x)</option> 
             <option value="theta_Z">θz(x)</option>

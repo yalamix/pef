@@ -112,6 +112,20 @@ async def debug(request: Request, session_id: str = Cookie(None, alias="session_
         request=request, name="debug.html", context={'msg': json.dumps(session.problem[0].parameters, indent=4)}
     )
 
+@app.get("/converter", response_class=HTMLResponse)
+async def converter(request: Request, session_id: str = Cookie(None, alias="session_id"), db: Session = Depends(get_db)):
+    session = db.query(UserSession).where(UserSession.id == session_id).first() 
+    return templates.TemplateResponse(
+        request=request, name="converter.html", context={'msg': json.dumps(session.problem[0].parameters, indent=4)}
+    )
+
+@app.get("/converter_modal", response_class=HTMLResponse)
+async def converter_modal(request: Request, session_id: str = Cookie(None, alias="session_id"), db: Session = Depends(get_db)):
+    session = db.query(UserSession).where(UserSession.id == session_id).first() 
+    return templates.TemplateResponse(
+        request=request, name="converter_modal.html", context={'msg': json.dumps(session.problem[0].parameters, indent=4)}
+    )
+
 @app.get("/reset")
 async def reset(session_id: str = Cookie(None, alias="session_id"), db: Session = Depends(get_db)):
     session = db.query(UserSession).where(UserSession.id == session_id).first()

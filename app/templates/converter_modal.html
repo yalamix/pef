@@ -1,0 +1,13 @@
+{% extends "modal.html" %}
+{% block content %}
+<h3 class="text-base font-semibold text-gray-900" id="modal-title">Conversor de unidades</h3>
+<div class="mt-4">
+    <iframe src="/converter" style="width: 100%; min-height: 69vh"></iframe>
+</div>  
+<div class="px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+  <button id="closeModal" type="button" _="on click trigger closeModal"
+    class="inline-flex w-full justify-center rounded-md bg-yellow-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-yellow-500 sm:ml-3 sm:w-auto">OK</button>
+  <button id="cancelModal" type="button" _="on click trigger closeModal"
+    class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 shadow-xs ring-gray-300 ring-inset hover:bg-gray-50 sm:mt-0 sm:w-auto">Cancelar</button>
+</div>
+{% endblock %}

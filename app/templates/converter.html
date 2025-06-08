@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor de Unidades</title>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.6.0/fonts/remixicon.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        body {
+            background: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .unit-converter {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+            padding: 30px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .converter-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .converter-header i {
+            font-size: 28px;
+            color: #4f46e5;
+            margin-right: 15px;
+        }
+        
+        .converter-header h2 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #4b5563;
+            font-size: 15px;
+        }
+        
+        .input-group input, 
+        .input-group select {
+            width: 100%;
+            padding: 14px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            color: #111827;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s;
+            background: white;
+        }
+        
+        .input-group input:focus, 
+        .input-group select:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+        }
+        
+        .action-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .btn-convert {
+            padding: 14px;
+            background: #4f46e5;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .btn-convert:hover {
+            background: #4338ca;
+        }
+        
+        .btn-swap {
+            padding: 14px;
+            background: white;
+            color: #4f46e5;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-swap:hover {
+            background: #f3f4f6;
+            border-color: #4f46e5;
+        }
+        
+        .result-box {
+            background: #f3f4f6;
+            border-radius: 8px;
+            padding: 25px;
+            margin-top: 25px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        
+        .result-box p {
+            font-size: 14px;
+            color: #4b5563;
+            margin-bottom: 8px;
+        }
+        
+        .result-box .result {
+            font-size: 28px;
+            font-weight: 700;
+            color: #10b981;
+            word-break: break-all;
+        }
+        
+        .unit-info {
+            margin-top: 25px;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #6b7280;
+            border: 1px dashed #d1d5db;
+            text-align: center;
+        }
+        
+        /* Estilo para o ícone de troca */
+        .swap-icon {
+            display: flex;
+            justify-content: center;
+            margin: 10px 0;
+        }
+        
+        .swap-icon i {
+            background: #f3f4f6;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #4f46e5;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .swap-icon i:hover {
+            background: #e5e7eb;
+            transform: rotate(180deg);
+        }
+    </style>
+</head>
+<body>
+    <div class="unit-converter">
+
+        <div class="input-group">
+            <label for="conversion-type">Tipo de Conversão</label>
+            <select id="conversion-type">
+                <option value="length">Comprimento</option>
+                <option value="area">Área</option>
+                <option value="secondMoment">Momento de Inércia (I)</option>
+                <option value="force">Força</option>
+                <option value="pressure">Pressão/Tensão</option>
+                <option value="moment">Momento Fletor</option>
+            </select>
+        </div>
+        
+        <div class="input-group">
+            <label for="from-unit">De</label>
+            <select id="from-unit">
+                <option value="mm">Milímetros (mm)</option>
+                <option value="cm">Centímetros (cm)</option>
+                <option value="m" selected>Metros (m)</option>
+            </select>
+        </div>
+        
+        <div class="input-group">
+            <label for="from-value">Valor</label>
+            <input type="number" id="from-value" placeholder="Digite o valor" value="1">
+        </div>
+        
+        <div class="swap-icon">
+            <i class="ri-arrow-down-up-line" id="swap-icon"></i>
+        </div>
+        
+        <div class="input-group">
+            <label for="to-unit">Para</label>
+            <select id="to-unit">
+                <option value="mm">Milímetros (mm)</option>
+                <option value="cm">Centímetros (cm)</option>
+                <option value="m" selected>Metros (m)</option>
+            </select>
+        </div>
+        
+        <div class="action-buttons" style="display: none;">
+            <button class="btn-convert" id="convert-btn">Converter</button>
+            <button class="btn-swap" id="swap-btn">Trocar Unidades</button>
+        </div>
+        
+        <div class="result-box">
+            <p>Resultado da conversão:</p>
+            <div class="result" id="result">1.000 m</div>
+        </div>
+
+    </div>
+
+    <script>
+        // Fatores de conversão para unidades de engenharia
+        const conversionFactors = {
+            // Comprimento
+            length: {
+                mm: 0.001,
+                cm: 0.01,
+                m: 1,
+                in: 0.0254,
+                ft: 0.3048
+            },
+            
+            // Área
+            area: {
+                mm2: 0.000001,
+                cm2: 0.0001,
+                m2: 1,
+                in2: 0.00064516,
+                ft2: 0.092903
+            },
+            
+            // Momento de Inércia (segundo momento de área)
+            secondMoment: {
+                mm4: 1e-12,
+                cm4: 1e-8,
+                m4: 1,
+                in4: 4.162e-7
+            },
+            
+            // Força
+            force: {
+                N: 1,
+                kN: 1000,
+                lbf: 4.44822,
+                kip: 4448.22
+            },
+            
+            // Pressão/Tensão
+            pressure: {
+                Pa: 1,
+                kPa: 1000,
+                MPa: 1000000,
+                psi: 6894.76,
+                ksi: 6894760
+            },
+            
+            // Momento Fletor
+            moment: {
+                N_m: 1,
+                kN_m: 1000,
+                lbf_ft: 1.35582,
+                kip_ft: 1355.82
+            }
+        };
+        
+        // Nomes amigáveis para as unidades
+        const unitNames = {
+            // Comprimento
+            mm: "mm",
+            cm: "cm",
+            m: "m",
+            in: "in",
+            ft: "ft",
+            
+            // Área
+            mm2: "mm²",
+            cm2: "cm²",
+            m2: "m²",
+            in2: "in²",
+            ft2: "ft²",
+            
+            // Momento de Inércia
+            mm4: "mm⁴",
+            cm4: "cm⁴",
+            m4: "m⁴",
+            in4: "in⁴",
+            
+            // Força
+            N: "N",
+            kN: "kN",
+            lbf: "lbf",
+            kip: "kip",
+            
+            // Pressão/Tensão
+            Pa: "Pa",
+            kPa: "kPa",
+            MPa: "MPa",
+            psi: "psi",
+            ksi: "ksi",
+            
+            // Momento Fletor
+            N_m: "N·m",
+            kN_m: "kN·m",
+            lbf_ft: "lbf·ft",
+            kip_ft: "kip·ft"
+        };
+        
+        // Atualizar unidades quando o tipo de conversão for alterado
+        document.getElementById('conversion-type').addEventListener('change', function() {
+            const type = this.value;
+            const fromUnit = document.getElementById('from-unit');
+            const toUnit = document.getElementById('to-unit');
+            
+            // Limpar selects
+            fromUnit.innerHTML = '';
+            toUnit.innerHTML = '';
+            
+            // Adicionar opções baseadas no tipo
+            for (const unit in conversionFactors[type]) {
+                const option1 = document.createElement('option');
+                option1.value = unit;
+                option1.textContent = `${unitNames[unit]} (${getUnitDescription(unit, type)})`;
+                fromUnit.appendChild(option1);
+                
+                const option2 = document.createElement('option');
+                option2.value = unit;
+                option2.textContent = `${unitNames[unit]} (${getUnitDescription(unit, type)})`;
+                
+                // Selecionar unidade SI por padrão na coluna "Para"
+                if (isSIUnit(unit, type)) {
+                    option2.selected = true;
+                }
+                
+                toUnit.appendChild(option2);
+            }
+            
+            // Converter imediatamente após mudar o tipo
+            convertUnits();
+        });
+        
+        // Função para obter descrição da unidade
+        function getUnitDescription(unit, type) {
+            const descriptions = {
+                length: {
+                    mm: "milímetros",
+                    cm: "centímetros",
+                    m: "metros",
+                    in: "polegadas",
+                    ft: "pés"
+                },
+                area: {
+                    mm2: "milímetros quadrados",
+                    cm2: "centímetros quadrados",
+                    m2: "metros quadrados",
+                    in2: "polegadas quadradas",
+                    ft2: "pés quadrados"
+                },
+                secondMoment: {
+                    mm4: "milímetros à quarta",
+                    cm4: "centímetros à quarta",
+                    m4: "metros à quarta",
+                    in4: "polegadas à quarta"
+                },
+                force: {
+                    N: "newtons",
+                    kN: "kilonewtons",
+                    lbf: "libra-força",
+                    kip: "kilopounds"
+                },
+                pressure: {
+                    Pa: "pascal",
+                    kPa: "kilopascal",
+                    MPa: "megapascal",
+                    psi: "libra por polegada quadrada",
+                    ksi: "kilolib por polegada quadrada"
+                },
+                moment: {
+                    N_m: "newton-metro",
+                    kN_m: "kilonewton-metro",
+                    lbf_ft: "libra-força pé",
+                    kip_ft: "kilopound pé"
+                }
+            };
+            
+            return descriptions[type][unit] || unit;
+        }
+        
+        // Função para verificar se é unidade SI
+        function isSIUnit(unit, type) {
+            const siUnits = {
+                length: 'm',
+                area: 'm2',
+                secondMoment: 'm4',
+                force: 'N',
+                pressure: 'Pa',
+                moment: 'N_m'
+            };
+            
+            return unit === siUnits[type];
+        }
+        
+        // Função para converter unidades
+        function convertUnits() {
+            const type = document.getElementById('conversion-type').value;
+            const fromUnit = document.getElementById('from-unit').value;
+            const toUnit = document.getElementById('to-unit').value;
+            const inputValue = parseFloat(document.getElementById('from-value').value);
+            
+            if (isNaN(inputValue)) {
+                document.getElementById('result').textContent = "Digite um valor válido";
+                return;
+            }
+            
+            // Fator de conversão para unidade SI
+            const siFactor = conversionFactors[type][fromUnit];
+            const valueInSI = inputValue * siFactor;
+            
+            // Converter de SI para unidade de destino
+            const result = valueInSI / conversionFactors[type][toUnit];
+            
+            // Formatando o resultado
+            let formattedResult;
+            if (Math.abs(result) < 0.0001 || Math.abs(result) > 1000000) {
+                formattedResult = result.toExponential(4);
+            } else if (Math.abs(result) < 1) {
+                formattedResult = result.toFixed(6);
+            } else if (Math.abs(result) < 1000) {
+                formattedResult = result.toFixed(4);
+            } else {
+                formattedResult = result.toFixed(2);
+            }
+            
+            // Exibir resultado
+            const resultElement = document.getElementById('result');
+            resultElement.innerHTML = `
+                ${inputValue} ${unitNames[fromUnit]} = 
+                <span style="color: #4f46e5;">${formattedResult}</span> ${unitNames[toUnit]}
+            `;
+            
+            // Adicionar animação ao resultado
+            resultElement.style.transform = "scale(1.05)";
+            setTimeout(() => {
+                resultElement.style.transform = "scale(1)";
+            }, 300);
+        }
+        
+        // Botão de conversão
+        document.getElementById('convert-btn').addEventListener('click', convertUnits);
+        
+        // Botão para trocar unidades
+        document.getElementById('swap-btn').addEventListener('click', swapUnits);
+        
+        // Ícone para trocar unidades
+        document.getElementById('swap-icon').addEventListener('click', swapUnits);
+        
+        // Função para trocar unidades
+        function swapUnits() {
+            const fromUnit = document.getElementById('from-unit');
+            const toUnit = document.getElementById('to-unit');
+            
+            // Salvar valores atuais
+            const fromValue = fromUnit.value;
+            const toValue = toUnit.value;
+            
+            // Trocar valores
+            fromUnit.value = toValue;
+            toUnit.value = fromValue;
+            
+            // Converter novamente
+            convertUnits();
+            
+            // Adicionar animação ao ícone
+            const icon = document.getElementById('swap-icon');
+            icon.style.transform = "rotate(180deg)";
+            setTimeout(() => {
+                icon.style.transform = "rotate(0deg)";
+            }, 300);
+        }
+        
+        // Converter ao digitar
+        document.getElementById('from-value').addEventListener('input', convertUnits);
+        
+        // Converter ao mudar unidade
+        document.getElementById('from-unit').addEventListener('change', convertUnits);
+        document.getElementById('to-unit').addEventListener('change', convertUnits);
+        
+        // Inicializar conversor
+        document.getElementById('conversion-type').dispatchEvent(new Event('change'));
+    </script>
+</body>
+</html>

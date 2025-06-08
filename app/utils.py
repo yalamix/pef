@@ -1,4 +1,4 @@
-from sympy import Float, sympify, Symbol, Piecewise, Eq, simplify, Basic, Rational, Expr, Add
+from sympy import Float, sympify, Symbol, Piecewise, Eq, simplify, Basic, Rational, Expr, Add, Number
 from sympy.assumptions.ask import ask
 from sympy.assumptions import Q
 from sympy.functions.special.singularity_functions import SingularityFunction
@@ -38,10 +38,6 @@ class ThresholdLatexPrinter(LatexPrinter):
         """
         pyf = float(f)
 
-        # 1) Integer check via rounding within a tiny epsilon
-        if abs(pyf - round(pyf)) < 1e-12:
-            return str(int(round(pyf)))
-
         # 2) Fraction‐check with max denominator 999 (skip denom=1)
         R = Rational(pyf).limit_denominator(99)
         if R.q != 1 and abs(float(R) - pyf) < 1e-12 \
@@ -49,12 +45,15 @@ class ThresholdLatexPrinter(LatexPrinter):
             return rf"\frac{{{R.p}}}{{{R.q}}}"
 
         # 3) Scientific‐notation check
-        sci_str = "{:.15e}".format(pyf)
+        sci_str = "{:.3e}".format(pyf)
         mant_str, exp_str = sci_str.split("e")
         e = int(exp_str)
         mant_str = mant_str.rstrip("0").rstrip(".")
         if e > self.sci_max or e < self.sci_min:
             return rf"{mant_str}\times10^{{{e}}}"
+        # 1) Integer check via rounding within a tiny epsilon
+        elif abs(pyf - round(pyf)) < 1e-12:
+            return str(int(round(pyf)))        
 
         # 4) Otherwise, regular float rounded to 2 decimals
         return f"{pyf:.2f}"
@@ -139,7 +138,19 @@ class ThresholdLatexPrinter(LatexPrinter):
                 subscript = f"{s}_{{{subscript}}}"
             return f"{base_latex}_{{{subscript}}}"
         else:
-            return base_latex
+            return base_latex      
+
+    def _print_Equality(self, expr: Eq) -> str:
+        lhs, rhs = expr.lhs, expr.rhs
+
+        # 1) Only box simple Symbol = Number
+        if isinstance(lhs, Symbol) and isinstance(rhs, Number):
+            lhs_str = self._print(lhs)
+            rhs_str = self._print(rhs)
+            return r"\boxed{\strut " + lhs_str + r"=" + rhs_str + r"}"
+
+        # 2) Otherwise delegate to the built-in relational printer
+        return super()._print_Relational(expr)        
 
 def remove_negative_singularity_terms(expr):
     """
