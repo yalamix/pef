@@ -956,12 +956,12 @@ class BeamProblem:
             else:
                 sb = cond[1]
             # isolate the constant
-            print(cond, k, p)
-            print()
+            # print(cond, k, p)
+            # print()
             sol = solve(Eq(sympify(cond[2], locals=symdict), p),k)[0]
             constant_det[str(k)].append(latex_with_threshold(collapse_singularity_functions(Eq(k, sol).subs(x, sb), x, relations)))  
             expr = Eq(k, sol).subs(x, sb)
-            print('Expr:', expr)
+            # print('Expr:', expr)
             # substitute positions
             for v in posdict:
                 expr = expr.subs(v, posdict[v])            
@@ -981,8 +981,8 @@ class BeamProblem:
             for v in vardict:
                 if str(v) != str(sb):
                     sol = sol.subs(v, vardict[v], evaluate=False)
-            print(sol)
-            print()
+            # print(sol)
+            # print()
             # isolate again if needed
             if k in sol.rhs.free_symbols:
                 sol = Eq(k, solve(sol, k)[0])
@@ -1028,9 +1028,6 @@ class BeamProblem:
                     for k in constants:
                         eq = eq.subs(k,constant_value[str(k)])
                         eqlit = eqlit.subs(k, constant_lit[str(k)])
-                    for r in reactions:
-                        eq = eq.subs(r,constant_value[str(r)])
-                        eqlit = eqlit.subs(k, constant_lit[str(r)])
                     eqlit = collapse_singularity_functions(eqlit, x, relations)                    
                     eq = eq.evalf(subs=self._remove_protected_symbols(vardict))
                     # if elasticy modulus or moment of inertia in equation, isolate the function
@@ -1054,6 +1051,19 @@ class BeamProblem:
                     final_eqs.append(latex_with_threshold(eq))
             except Exception as e:
                 print(e)
+
+        def format_cond_expr(cond: Item, constant_det: dict, constant_value: dict, p: Expr, k: Expr, constant_lit: dict):
+            # sb = position of condition
+            if isinstance(cond[1], str):
+                sb = sympify(cond[1], locals=symdict)
+            else:
+                sb = cond[1]
+            expr = Eq(p.subs(x, sb), sympify(cond[2], locals=symdict))
+            # for v in posdict:
+            #     expr = expr.subs(v, posdict[v])      
+            expr = collapse_singularity_functions(expr, x, relations)        
+            constant_det[str(k)].append(latex_with_threshold(expr))  
+            return expr
 
         # Normal
         if len(self.normal_forces) > 0 and en['normal']:
@@ -1390,14 +1400,17 @@ class BeamProblem:
                 reaction_strings = [str(g) for g in reactions]
                 ps = [remove_negative_singularity_terms(item) for item in ps]
                 condis = filter_conditions(self.boundary_conditions)
-                combined = determine_constants_conditions(condis, c, reactions, ps)
-                for cond, k in combined:
+                # combined = determine_constants_conditions(condis, c, reactions, ps)
+                constant_eqs = []
+                unknowns = c + reactions
+                for cond, k in zip(condis, unknowns):
                     if cond[0] == 'V_y':
                         p = ps[0]                              
                         constant_det[str(k)] = []
                         # V_y(position) = value = first integration of q(x)
                         constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
-                        calculate_constant(cond, constant_det, constant_value, p, k, constant_lit)
+                        # calculate_constant(cond, constant_det, constant_value, p, k, constant_lit)
+                        constant_eqs.append(format_cond_expr(cond, constant_det, constant_value, p, k, constant_lit))
                         if len(constant_det.keys()) == total_unknowns:
                             break
                     if cond[0] == 'M_z':
@@ -1405,7 +1418,8 @@ class BeamProblem:
                         constant_det[str(k)] = []
                         # M_z(position) = value = second integration of q(x)
                         constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
-                        calculate_constant(cond, constant_det, constant_value, p, k, constant_lit)
+                        # calculate_constant(cond, constant_det, constant_value, p, k, constant_lit)
+                        constant_eqs.append(format_cond_expr(cond, constant_det, constant_value, p, k, constant_lit))
                         if len(constant_det.keys()) == total_unknowns:
                             break  
                     if cond[0] == 'theta_Z':
@@ -1413,7 +1427,8 @@ class BeamProblem:
                         constant_det[str(k)] = []
                         # theta_Z(position) = value = third integration of q(x)
                         constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
-                        calculate_constant(cond, constant_det, constant_value, p, k, constant_lit)
+                        # calculate_constant(cond, constant_det, constant_value, p, k, constant_lit)
+                        constant_eqs.append(format_cond_expr(cond, constant_det, constant_value, p, k, constant_lit))
                         if len(constant_det.keys()) == total_unknowns:
                             break
                     if cond[0] == 'v':
@@ -1421,14 +1436,26 @@ class BeamProblem:
                         constant_det[str(k)] = []
                         # v(position) = value = fourth integration of q(x)
                         constant_det[str(k)].append(latex_with_threshold(Eq(Eq(f[cond[0]](self._s(cond[1])),self._s(cond[2])), p, evaluate=False)))
-                        calculate_constant(cond, constant_det, constant_value, p, k, constant_lit)
+                        # calculate_constant(cond, constant_det, constant_value, p, k, constant_lit)
+                        constant_eqs.append(format_cond_expr(cond, constant_det, constant_value, p, k, constant_lit))
                         if len(constant_det.keys()) == total_unknowns:
-                            break                                                            
+                            break                                                                            
+                constant_system = [system_to_latex(*constant_eqs)]
+                res = solve(constant_eqs, unknowns, dict=True)[0]
+                print(res)
+                for k in res:
+                    constant_lit[str(k)] = simplify(res[k])
+                    constant_value[str(k)] = res[k].evalf(subs=vardict)
+                    if latex_with_threshold(Eq(k, constant_lit[str(k)])) != latex_with_threshold(Eq(k, constant_value[str(k)])):
+                        constant_system.append(arrow_inline_no_braces(Eq(k, constant_lit[str(k)]), Eq(k, constant_value[str(k)])))
+                    else:
+                        constant_system.append(latex_with_threshold(Eq(k, constant_value[str(k)])))
                 # finalize constants
-                finalize_constants(constant_strings, reaction_strings, reactions, constant_value, constant_det)
+                # finalize_constants(constant_strings, reaction_strings, reactions, constant_value, constant_det)
                 shear_block['constants'] = constant_det
+                shear_block['constant_system'] = list(dict.fromkeys(constant_system))
                 # plots
-                plot_equations(plots, final_eqs, c, constant_value, constant_lit)
+                plot_equations(plots, final_eqs, unknowns, constant_value, constant_lit)
                 shear_block['final_equations'] = final_eqs
                 shear_block['plots'] = plots
             elif len(mp['M_z']) > 0:
@@ -1595,7 +1622,7 @@ class BeamProblem:
                 if force['n'] == 0:
                     y = [2* HEIGHT for i in range(len(x))]
                 else:
-                    f = lambdify(symbols('x'), self._get_load_equation(force).evalf(subs=self._get_symbol_value()), modules=[mapping, 'numpy'])
+                    f = lambdify(symbols('x'), (1 if force['pos'] else -1) * self._get_load_equation(force).evalf(subs=self._get_symbol_value()), modules=[mapping, 'numpy'])
                     y = np.array(f(x))
                     y = (y-np.min(y))/(np.max(y)-np.min(y)) * HEIGHT + HEIGHT
                 self.fig = add_curve_with_y_cutoff_fill(self.fig, x, y, HEIGHT, format_subs(force['value']), up=force['pos'])
@@ -1621,7 +1648,7 @@ class BeamProblem:
                 if force['n'] == 0:
                     y = [2* HEIGHT for i in range(len(x))]
                 else:
-                    f = lambdify(symbols('x'), self._get_load_equation(force).evalf(subs=self._get_symbol_value()), modules=[mapping, 'numpy'])
+                    f = lambdify(symbols('x'), (1 if force['pos'] else -1) * self._get_load_equation(force).evalf(subs=self._get_symbol_value()), modules=[mapping, 'numpy'])
                     y = np.array(f(x))
                     y = (y-np.min(y))/(np.max(y)-np.min(y)) * HEIGHT + HEIGHT
                 self.fig = add_curve_with_y_cutoff_fill(self.fig, x, y, HEIGHT, format_subs(force['value']), up=force['pos'], side=True)
@@ -1648,7 +1675,7 @@ class BeamProblem:
                 if moment['n'] == 0:
                     y = [2* HEIGHT for i in range(len(x))]
                 else:
-                    f = lambdify(symbols('x'), self._get_load_equation(moment).evalf(subs=self._get_symbol_value()), modules=[mapping, 'numpy'])
+                    f = lambdify(symbols('x'), (1 if moment['pos'] else -1) * self._get_load_equation(moment).evalf(subs=self._get_symbol_value()), modules=[mapping, 'numpy'])
                     y = np.array(f(x))
                     y = (y-np.min(y))/(np.max(y)-np.min(y)) * HEIGHT + HEIGHT
                 self.fig = add_curve_with_y_cutoff_fill(self.fig, x, y, HEIGHT, format_subs(moment['value']), up=moment['pos'], side=True, double=True)    

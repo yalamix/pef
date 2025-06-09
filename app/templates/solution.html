@@ -23,6 +23,12 @@
                     <p>$$ {{ step }} $$</p>
                     {% endfor %}
                 {% endfor %}
+                {% if 'constant_system' in solution %}
+                    <h2 class="p-1 rounded-full text-center">Sistema:</h2>
+                    {% for step in solution['constant_system'] %}
+                    <p>$$ {{ step }} $$</p>
+                    {% endfor %}
+                {% endif %}            
             </div>   
             <div>
                 <h2 class="p-1 rounded-full">Equações Finais:</h2>

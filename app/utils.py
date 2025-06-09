@@ -508,3 +508,21 @@ def is_only_one_L_and_numbers(expr_str: str, primary: str = "L") -> bool:
     #       - sympify("2*L").count(L) == 1
     cnt = expr.count(L)
     return (cnt == 1)
+
+def system_to_latex(*equations):
+    if not equations:
+        return ""
+    # Join the LaTeX representations of each equation with line breaks
+    equations_latex = r" \\ ".join(latex_with_threshold(eq) for eq in equations)
+    # Wrap the equations in a LaTeX system environment
+    return r"\left\{\begin{matrix}" + equations_latex + r"\end{matrix}\right."
+
+def arrow_inline_no_braces(eq1, eq2, arrow="\\rightarrow"):
+    """
+    Gera código LaTeX inline: eq1 arrow eq2, sem chaves.
+    - eq1, eq2: objetos sympy Eq()
+    - arrow: símbolo da seta, ex: "\\rightarrow", "\\Rightarrow"
+    """
+    l1 = latex_with_threshold(eq1)
+    l2 = latex_with_threshold(eq2)
+    return rf"{l1} \; {arrow} \; {l2}"
